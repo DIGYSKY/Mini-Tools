@@ -63,6 +63,7 @@ update_tools() {
     git pull "$repo_url"
     if [[ $? -eq 0 ]]; then
         echo "Update successful."
+        ./install_MiniTools
     else
         echo "Update failed."
     fi

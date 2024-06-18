@@ -5,6 +5,7 @@ Mini-Tools is a collection of useful tools for managing various aspects of your 
 ## Table of Contents
 
 - [Installation](#installation)
+- [Mini-Tools command](#mini-tools-command)
 - [Available Tools](#available-tools)
   - [Ports Manager](#ports-manager)
     - [Usage](#usage)
@@ -28,6 +29,17 @@ Reload your terminal or run `source ~/.bashrc` or `source ~/.zshrc` to apply the
 ### Note
 
 The `install_MiniTools` script is a bash script that checks that the necessary tools are installed and available in the PATH. If a tool requires a specific tool, it gives the tools the necessary permissions to be executable. In other words, it installs the necessary prerequisites.
+
+## Mini-Tools command
+
+`minitools` is the main command to manage the available tools in the Mini-Tools project. Here is a guide to using this command.
+
+### Usage
+
+- `-v, --version`: Display the version of Mini-Tools
+- `-l, --list-tools`: List available tools and unavailable tools
+- `-up, --update`: Update Mini-Tools from the repository
+- `-h, --help`: Display this help
 
 ## Available Tools
 
