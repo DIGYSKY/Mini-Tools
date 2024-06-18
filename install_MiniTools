@@ -1,0 +1,124 @@
+#!/bin/bash
+
+# Fonction pour ajouter Mini-Tools au PATH
+add_to_path() {
+    local shell_rc=$1
+    if [[ -f ~/$shell_rc ]]; then
+        echo "Ajout de Mini-Tools au PATH dans $shell_rc"
+        export PATH=$PATH:$(pwd)
+        echo 'export PATH=$PATH:'$(pwd) >> ~/$shell_rc
+        echo "Mini-Tools a été ajouté au PATH dans $shell_rc. Veuillez exécuter 'source ~/$shell_rc' pour appliquer les changements."
+    else
+        echo "Le fichier $shell_rc n'existe pas. Aucun changement n'a été fait au PATH."
+    fi
+}
+
+# Demander à l'utilisateur quel shell il utilise
+read -p "Voulez-vous ajouter Mini-Tools au PATH pour bash, zsh, ou les deux ? (bash/zsh/both/n) " shell_choice
+case $shell_choice in
+    bash)
+        add_to_path ".bashrc"
+        ;;
+    zsh)
+        add_to_path ".zshrc"
+        ;;
+    both)
+        add_to_path ".bashrc"
+        add_to_path ".zshrc"
+        ;;
+    n)
+        echo "Aucun changement n'a été fait au PATH."
+        ;;
+    *)
+        echo "Choix invalide. Aucun changement n'a été fait au PATH."
+        ;;
+esac
+
+# Déterminer le système d'exploitation
+detect_os() {
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo "linux"
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "macos"
+    else
+        echo "unknown"
+    fi
+}
+
+OS=$(detect_os)
+
+if [[ "$OS" == "unknown" ]]; then
+    read -p "Impossible de déterminer le système d'exploitation. Voulez-vous utiliser apt (Linux) ou brew (macOS) ? (apt/brew) " package_manager_choice
+    case $package_manager_choice in
+        apt)
+            OS="linux"
+            ;;
+        brew)
+            OS="macos"
+            ;;
+        *)
+            echo "Choix invalide. Veuillez réexécuter le script et choisir apt ou brew."
+            exit 1
+            ;;
+    esac
+fi
+
+# Fonction pour vérifier et installer un outil
+check_and_install() {
+    local tool=$1
+    if command -v $tool &> /dev/null; then
+        echo "$tool est déjà installé."
+    else
+        echo "$tool n'est pas installé."
+        read -p "Voulez-vous installer $tool ? (Y/n) " confirm
+        if [[ "$confirm" == "Y" || "$confirm" == "y" || "$confirm" == "" ]]; then
+            if [[ "$tool" == "lsof" || "$tool" == "ps" ]]; then
+                echo "$tool fait partie des utilitaires de base de votre système. Assurez-vous que votre système est à jour."
+            else
+                if [[ "$OS" == "linux" ]]; then
+                    sudo apt-get install -y $tool
+                elif [[ "$OS" == "macos" ]]; then
+                    brew install $tool
+                else
+                    echo "Système d'exploitation non supporté pour l'installation automatique de $tool."
+                fi
+            fi
+        fi
+    fi
+}
+
+# Fonction pour rendre tous les outils exécutables
+make_executable() {
+    local tool=$1
+    if [[ -f $tool ]]; then
+        chmod +x $tool
+        echo "$tool est maintenant exécutable."
+    else
+        echo "Fichier $tool introuvable, impossible de rendre exécutable."
+    fi
+}
+
+# Lire le fichier install_list.txt et vérifier les outils
+if [[ -f "install_list.txt" ]]; then
+    while IFS= read -r tool; do
+        check_and_install $tool
+    done < "install_list.txt"
+else
+    echo "Le fichier install_list.txt est introuvable."
+fi
+
+# Demander à l'utilisateur s'il souhaite rendre les outils exécutables
+read -p "Voulez-vous rendre les outils exécutables ? (Y/n) " make_exec_choice
+if [[ "$make_exec_choice" == "Y" || "$make_exec_choice" == "y" || "$make_exec_choice" == "" ]]; then
+    if [[ -f "mini_tools_list.txt" ]]; then
+        while IFS= read -r tool; do
+            make_executable $tool
+        done < "mini_tools_list.txt"
+    else
+        echo "Le fichier mini_tools_list.txt est introuvable."
+    fi
+else
+    echo "Les outils ne seront pas rendus exécutables."
+fi
+
+echo "Installation terminée."

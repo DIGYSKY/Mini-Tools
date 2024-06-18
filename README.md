@@ -19,19 +19,14 @@ Mini-Tools est une collection d'outils utiles pour la gestion de divers aspects 
 Pour installer et utiliser les outils de ce dépôt, clonez le dépôt et ajoutez-le à votre PATH.
 
 ```bash
-git clone https://github.com/DIGYSKY/Mini-Tools.git
-cd Mini-Tools
-chmod +x portsmanager  # Rendre le script exécutable
-export PATH=$PATH:$(pwd)  # Ajouter le dossier courant au PATH
-```
-
-Ajoutez la ligne suivante à votre fichier `.bashrc` ou `.zshrc` pour rendre l'ajout au PATH permanent :
-
-```bash
-export PATH=$PATH:/chemin/vers/Mini-Tools
+git clone https://github.com/votre-utilisateur/Mini-Tools.git && cd Mini-Tools && chmod +x install_MiniTools && ./install_MiniTools
 ```
 
 Rechargez votre terminal ou exécutez `source ~/.bashrc` ou `source ~/.zshrc` pour appliquer les modifications.
+
+### Note
+
+Le script `install_MiniTools` est un script bash qui vérifie que les outils nécessaires sont installés et disponibles dans le PATH. Si un outil nécessite un outil spécifique, donne aux outils les permissions nécéssaires pour être exécutable. En d'autres termes, il installe les prérequis nécessaires.
 
 ## Outils disponibles
 
@@ -127,6 +122,8 @@ Avant d'utiliser `portsmanager`, assurez-vous que votre système dispose des pr�
 ## Contributions
 
 Les contributions sont les bienvenues ! Si vous avez des idées d'améliorations ou des nouveaux outils à ajouter, n'hésitez pas à ouvrir une issue ou une pull request.
+
+Si un outil nécessite un outil spécifique, il faut l'ajouter dans le fichier install_list.txt
 
 ## Licence
 
