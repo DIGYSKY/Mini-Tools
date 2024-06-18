@@ -1,41 +1,41 @@
 # Mini-Tools
 
-Mini-Tools est une collection d'outils utiles pour la gestion de divers aspects de votre système. Chaque outil est conçu pour résoudre des problèmes spécifiques de manière efficace et conviviale.
+Mini-Tools is a collection of useful tools for managing various aspects of your system. Each tool is designed to solve specific problems efficiently and user-friendly.
 
-## Table des matières
+## Table of Contents
 
 - [Installation](#installation)
-- [Outils disponibles](#outils-disponibles)
+- [Available Tools](#available-tools)
   - [Ports Manager](#ports-manager)
-    - [Utilisation](#utilisation)
+    - [Usage](#usage)
     - [Options](#options)
-    - [Exemples](#exemples)
-    - [Prérequis](#prérequis)
+    - [Examples](#examples)
+    - [Prerequisites](#prerequisites)
 - [Contributions](#contributions)
-- [Licence](#licence)
-- [Auteurs](#auteurs)
+- [License](#license)
+- [Authors](#authors)
 
 ## Installation
 
-Pour installer et utiliser les outils de ce dépôt, clonez le dépôt et ajoutez-le à votre PATH.
+To install and use the tools in this repository, clone the repository and add it to your PATH.
 
 ```bash
-git clone https://github.com/votre-utilisateur/Mini-Tools.git && cd Mini-Tools && chmod +x install_MiniTools && ./install_MiniTools
+git clone https://github.com/your-username/Mini-Tools.git && cd Mini-Tools && chmod +x install_MiniTools && ./install_MiniTools
 ```
 
-Rechargez votre terminal ou exécutez `source ~/.bashrc` ou `source ~/.zshrc` pour appliquer les modifications.
+Reload your terminal or run `source ~/.bashrc` or `source ~/.zshrc` to apply the changes.
 
 ### Note
 
-Le script `install_MiniTools` est un script bash qui vérifie que les outils nécessaires sont installés et disponibles dans le PATH. Si un outil nécessite un outil spécifique, donne aux outils les permissions nécéssaires pour être exécutable. En d'autres termes, il installe les prérequis nécessaires.
+The `install_MiniTools` script is a bash script that checks that the necessary tools are installed and available in the PATH. If a tool requires a specific tool, it gives the tools the necessary permissions to be executable. In other words, it installs the necessary prerequisites.
 
-## Outils disponibles
+## Available Tools
 
 ### Ports Manager
 
-`portsmanager` est un outil de gestion des ports permettant de lister et de gérer les processus écoutant sur des ports spécifiques ou sur tous les ports ouverts.
+`portsmanager` is a port management tool that allows you to list and manage processes listening on specific ports or on all open ports.
 
-#### Utilisation
+#### Usage
 
 ```bash
 portsmanager <port> [<port> ...]
@@ -48,31 +48,31 @@ portsmanager [--help|-h]
 
 #### Options
 
-- `<port>` : Spécifiez un ou plusieurs ports pour lesquels vous souhaitez lister les processus.
-- `--kill, -k` : Optionnel. Tuer les processus écoutant sur les ports spécifiés après confirmation.
-- `-y` : Optionnel. Utilisé avec `--kill` pour tuer les processus sans confirmation.
-- `--all, -a` : Lister tous les ports ouverts.
-- `--kill-all, -ka` : Tuer tous les processus écoutant sur tous les ports sans confirmation.
-- `--help, -h` : Afficher ce message d'aide et quitter.
+- `<port>`: Specify one or more ports for which you want to list the processes.
+- `--kill, -k`: Optional. Kill the processes listening on the specified ports after confirmation.
+- `-y`: Optional. Used with `--kill` to kill the processes without confirmation.
+- `--all, -a`: List all open ports.
+- `--kill-all, -ka`: Kill all processes listening on all ports without confirmation.
+- `--help, -h`: Display this help message and exit.
 
-#### Exemples
+#### Examples
 
-- Lister les processus écoutant sur les ports 80 et 443 :
+- List processes listening on ports 80 and 443:
   ```bash
   portsmanager 80 443
   ```
 
-- Lister et tuer les processus écoutant sur les ports 80 et 443 après confirmation :
+- List and kill processes listening on ports 80 and 443 after confirmation:
   ```bash
   portsmanager 80 443 --kill
   ```
 
-- Lister et tuer les processus écoutant sur les ports 80 et 443 sans confirmation :
+- List and kill processes listening on ports 80 and 443 without confirmation:
   ```bash
   portsmanager 80 443 --kill -y
   ```
 
-- Lister tous les ports ouverts :
+- List all open ports:
   ```bash
   portsmanager --all
   Port: 22
@@ -88,59 +88,59 @@ portsmanager [--help|-h]
   5678    root        nginx               TCP             nginx
   ```
 
-- Lister tous les ports ouverts et tuer les processus après confirmation :
+- List all open ports and kill processes after confirmation:
   ```bash
   portsmanager --all --kill
   ```
 
-- Tuer tous les processus écoutant sur tous les ports sans confirmation :
+- Kill all processes listening on all ports without confirmation:
   ```bash
   portsmanager --kill-all
   ```
 
-## Prérequis
+## Prerequisites
 
-Avant d'utiliser `portsmanager`, assurez-vous que votre système dispose des prérequis suivants :
+Before using `portsmanager`, ensure that your system meets the following prerequisites:
 
-1. **Système d'exploitation** : `portsmanager` est conçu pour fonctionner sur les systèmes d'exploitation basés sur Unix, comme Linux et macOS.
-2. **Permissions sudo** : Certaines commandes nécessitent des permissions élevées pour lister et tuer les processus. Assurez-vous que votre utilisateur dispose des permissions sudo.
-3. **Outils installés** : Les outils suivants doivent être installés et disponibles dans votre PATH :
-   - `lsof` : Utilisé pour lister les processus écoutant sur les ports.
-   - `ps` : Utilisé pour obtenir le nom des applications à partir de leurs PID.
+1. **Operating System**: `portsmanager` is designed to work on Unix-based operating systems, such as Linux and macOS.
+2. **Sudo Permissions**: Some commands require elevated permissions to list and kill processes. Ensure your user has sudo permissions.
+3. **Installed Tools**: The following tools must be installed and available in your PATH:
+   - `lsof`: Used to list processes listening on ports.
+   - `ps`: Used to get the name of applications from their PID.
    
-   Vous pouvez vérifier l'installation de ces outils avec les commandes suivantes :
+   You can check the installation of these tools with the following commands:
    ```bash
    which lsof
    which ps
    ```
-   Si ces commandes ne renvoient aucun chemin, vous devez installer les outils nécessaires.
+   If these commands do not return any path, you need to install the necessary tools.
 
-4. **Permissions d'exécution** : Assurez-vous que le script `portsmanager` est exécutable. Vous pouvez définir les permissions d'exécution avec la commande :
+4. **Executable Permissions**: Ensure the `portsmanager` script is executable. You can set the executable permissions with the command:
    ```bash
    chmod +x portsmanager
    ```
 
 ## Contributions
 
-Les contributions sont les bienvenues ! Si vous avez des idées d'améliorations ou des nouveaux outils à ajouter, n'hésitez pas à ouvrir une issue ou une pull request.
+Contributions are welcome! If you have ideas for improvements or new tools to add, feel free to open an issue or a pull request.
 
-Pour ajouter un Tools à Mini-Tools, il faut l'ajouter dans le fichier mini_tools_list.txt
+To add a tool to Mini-Tools, add it to the `mini_tools_list.txt` file.
 
-Si un outil nécessite un outil spécifique, il faut l'ajouter dans le fichier install_list.txt
+If a tool requires a specific tool, add it to the `install_list.txt` file.
 
-Ajouter votre pseudo dans la section "Auteurs" du README.md avec votre contribution
+Add your username in the "Authors" section of the README.md with your contribution.
 
-## Auteurs
+## Authors
 
-- [DIGYSKY "lilyan CHAUVEAU"](https://github.com/DIGYSKY) (Initiateur du projet)
-  - Création de la structure de Mini-Tools
-  - Création du script install_MiniTools
-  - Création du fichier mini_tools_list.txt
-  - Création du fichier install_list.txt
-  - Création du fichier README.md
-  - Ajout du fichier LICENSE
-  - Création de l'outil Ports Manager
+- [DIGYSKY "Lilyan CHAUVEAU"](https://github.com/DIGYSKY) (Project Initiator)
+  - Created the structure of Mini-Tools
+  - Created the `install_MiniTools` script
+  - Created the `mini_tools_list.txt` file
+  - Created the `install_list.txt` file
+  - Created the README.md file
+  - Added the LICENSE file
+  - Created the Ports Manager tool
 
-## Licence
+## License
 
-Ce projet est sous licence GNU GPLv3. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
+This project is licensed under the GNU GPLv3 license. See the [LICENSE](LICENSE) file for details.
