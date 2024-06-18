@@ -137,8 +137,8 @@ Add your username in the "Authors" section of the README.md with your contributi
   - Created the `install_MiniTools` script
   - Created the `mini_tools_list.txt` file
   - Created the `install_list.txt` file
-  - Created the README.md file
-  - Added the LICENSE file
+  - Created the `README.md` file
+  - Added the `LICENSE` file
   - Created the Ports Manager tool `portsmanager`
 
 ## License
