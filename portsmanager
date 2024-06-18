@@ -1,0 +1,220 @@
+#!/bin/bash
+
+# Fonction pour afficher l'aide en français
+show_help_fr() {
+    echo "Usage: portsmanager <port> [<port> ...]"
+    echo "Usage: portsmanager <port> [<port> ...] [--kill|-k] [-y]"
+    echo "Usage: portsmanager [--all|-a]"
+    echo "Usage: portsmanager [-all|-a] [--kill|-k] [-y]"
+    echo "Usage: portsmanager [--kill-all|-ka]"
+    echo "Usage: portsmanager [--help|-h]"
+    echo
+    echo "Description:"
+    echo "  portsmanager est un outil de gestion des ports permettant"
+    echo "  de lister et de gérer les processus écoutant sur des ports"
+    echo "  spécifiques ou sur tous les ports ouverts."
+    echo
+    echo "Options:"
+    echo "  <port>          Spécifiez un ou plusieurs ports pour lesquels vous souhaitez lister les processus."
+    echo "  --kill, -k      Optionnel. Tuer les processus écoutant sur les ports spécifiés après confirmation."
+    echo "  -y              Optionnel. Utilisé avec --kill pour tuer les processus sans confirmation."
+    echo "  --all, -a       Lister tous les ports ouverts."
+    echo "  --kill-all, -ka Tuer tous les processus écoutant sur tous les ports sans confirmation."
+    echo "  --help          Afficher ce message d'aide et quitter."
+    echo
+    echo "Exemples:"
+    echo "  portsmanager 80 443               Lister les processus écoutant sur les ports 80 et 443"
+    echo "  portsmanager 80 443 --kill        Lister et tuer les processus écoutant sur les ports 80 et 443 après confirmation"
+    echo "  portsmanager 80 443 --kill -y     Lister et tuer les processus écoutant sur les ports 80 et 443 sans confirmation"
+    echo "  portsmanager --all                Lister tous les ports ouverts"
+    echo "  portsmanager --all --kill         Lister tous les ports ouverts et tuer les processus après confirmation"
+    echo "  portsmanager --kill-all           Tuer tous les processus écoutant sur tous les ports sans confirmation"
+}
+
+# Fonction pour afficher l'aide en anglais
+show_help_en() {
+    echo "Usage: portsmanager <port> [<port> ...]"
+    echo "Usage: portsmanager <port> [<port> ...] [--kill|-k] [-y]"
+    echo "Usage: portsmanager [--all|-a]"
+    echo "Usage: portsmanager [--kill-all|-ka]"
+    echo "Usage: portsmanager [--help|-h]"
+    echo
+    echo "Description:"
+    echo "  portsmanager is a port management tool that allows you to list and manage processes listening on specific ports or all open ports."
+    echo
+    echo "Options:"
+    echo "  <port>          Specify one or more ports for which you want to list the processes."
+    echo "  --kill, -k      Optional. Kill the processes listening on the specified ports after confirmation."
+    echo "  -y              Optional. Used with --kill to kill processes without confirmation."
+    echo "  --all, -a       List all open ports."
+    echo "  --kill-all, -ka Kill all processes listening on all ports without confirmation."
+    echo "  --help          Display this help message and exit."
+    echo
+    echo "Examples:"
+    echo "  portsmanager 80 443               List processes listening on ports 80 and 443"
+    echo "  portsmanager 80 443 --kill        List and kill processes listening on ports 80 and 443 after confirmation"
+    echo "  portsmanager 80 443 --kill -y     List and kill processes listening on ports 80 and 443 without confirmation"
+    echo "  portsmanager --all                List all open ports"
+    echo "  portsmanager --all --kill         List all open ports and kill processes after confirmation"
+    echo "  portsmanager --kill-all           Kill all processes listening on all ports without confirmation"
+}
+
+# Déterminer la langue du système
+LANGUAGE=$(defaults read -g AppleLocale | cut -d'_' -f1)
+
+# Fonction pour afficher l'aide dans la langue appropriée
+show_help() {
+    case $LANGUAGE in
+        fr)
+            show_help_fr
+            ;;
+        *)
+            show_help_en
+            ;;
+    esac
+}
+
+# Vérifier si l'utilisateur a demandé l'aide
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    show_help
+    exit 0
+fi
+
+# Initialiser les variables
+PORTS=()
+ALL_PORTS=false
+KILL_OPTION=false
+KILL_ALL=false
+CONFIRMATION=true
+
+# Analyser les arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --all|-a)
+            ALL_PORTS=true
+            shift
+            ;;
+        --kill|-k)
+            KILL_OPTION=true
+            shift
+            ;;
+        --kill-all|-ka)
+            KILL_ALL=true
+            shift
+            ;;
+        -y)
+            CONFIRMATION=false
+            shift
+            ;;
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        *)
+            if [[ "$1" =~ ^[0-9]+$ ]]; then
+                PORTS+=("$1")
+                shift
+            else
+                show_help
+                exit 64  # Code de sortie pour mauvaise utilisation
+            fi
+            ;;
+    esac
+done
+
+# Si ni un port ni l'option --all n'est spécifiée, afficher l'aide
+if [[ ${#PORTS[@]} -eq 0 && "$ALL_PORTS" == false && "$KILL_ALL" == false ]]; then
+    show_help
+    exit 64  # Code de sortie pour mauvaise utilisation
+fi
+
+# Fonction pour afficher et éventuellement tuer les processus par port
+process_port() {
+    local port=$1
+    lsof_output=$(sudo lsof -i :$port | grep LISTEN)
+    
+    # Vérifier si lsof a trouvé des processus
+    if [[ -z "$lsof_output" ]]; then
+        echo "No process is listening on port $port"
+        return
+    fi
+
+    # Afficher l'en-tête
+    echo -e "\nPort: $port"
+    echo -e "PID\tUser\tApplication\tProtocol\tName"
+
+    # Lire la sortie de lsof ligne par ligne
+    echo "$lsof_output" | while IFS= read -r line; do
+        # Extraire les informations nécessaires
+        pid=$(echo "$line" | awk '{print $2}')
+        user=$(echo "$line" | awk '{print $3}')
+        address=$(echo "$line" | awk '{print $9}')
+        protocol=$(echo "$line" | awk '{print $8}')
+        name=$(echo "$line" | awk '{print $1}')
+        
+        # Obtenir le nom de l'application à partir du PID
+        app_name=$(ps -p "$pid" -o comm= 2>/dev/null)
+
+        # Vérifier si le nom de l'application a été trouvé
+        if [[ -z "$app_name" ]]; then
+            app_name="N/A"
+        fi
+        
+        # Afficher toutes les informations
+        echo -e "$pid\t$user\t$app_name\t$protocol\t$name"
+    done
+
+    # Confirmation pour tuer les processus
+    if [[ "$KILL_OPTION" == true ]]; then
+        if [[ "$CONFIRMATION" == true ]]; then
+            read -p "Do you want to kill all processes listening on port $port? (Y/n default: n) " confirm
+        else
+            confirm="Y"
+        fi
+        if [[ "$confirm" == "Y" ]]; then
+            echo "$lsof_output" | while IFS= read -r line; do
+                pid=$(echo "$line" | awk '{print $2}')
+                app_name=$(ps -p "$pid" -o comm= 2>/dev/null)
+                echo "Killing process $pid ($app_name)..."
+                sudo kill -9 "$pid"
+                if [[ $? -eq 0 ]]; then
+                    echo "Process $pid ($app_name) killed successfully."
+                else
+                    echo "Failed to kill process $pid ($app_name)."
+                fi
+            done
+        else
+            echo "Skipping killing processes on port $port"
+        fi
+    fi
+}
+
+# Traitement des ports spécifiés ou de tous les ports
+if [[ "$ALL_PORTS" == true || "$KILL_ALL" == true ]]; then
+    # Récupérer tous les ports ouverts
+    all_ports=$(sudo lsof -i -P -n | grep LISTEN | awk -F':' '{print $2}' | awk '{print $1}' | sort | uniq)
+    for port in $all_ports; do
+        process_port $port
+        # Tuer tous les processus sans confirmation si l'option --kill-all est spécifiée
+        if [[ "$KILL_ALL" == true ]]; then
+            echo "$lsof_output" | while IFS= read -r line; do
+                pid=$(echo "$line" | awk '{print $2}')
+                app_name=$(ps -p "$pid" -o comm= 2>/dev/null)
+                echo "Killing process $pid ($app_name)..."
+                sudo kill -9 "$pid"
+                if [[ $? -eq 0 ]]; then
+                    echo "Process $pid ($app_name) killed successfully."
+                else
+                    echo "Failed to kill process $pid ($app_name)."
+                fi
+            done
+        fi
+    done
+else
+    # Traiter les ports spécifiés un par un
+    for port in "${PORTS[@]}"; do
+        process_port $port
+    done
+fi
+
+exit 0  # Code de sortie pour succès
