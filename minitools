@@ -58,14 +58,33 @@ update_tools() {
     local repo_url="https://github.com/DIGYSKY/Mini-Tools.git"
     local script_dir
     script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-    echo "Updating Mini-Tools from $repo_url in the directory $script_dir"
-    cd "$script_dir" || { echo "Unable to change directory to $script_dir"; exit 1; }
-    git pull "$repo_url"
-    if [[ $? -eq 0 ]]; then
-        echo "Update successful."
-        ./install_MiniTools
+    echo "Vérification de la version actuelle de Mini-Tools..."
+    local current_version
+    current_version=$(grep -oP '(?<=Mini-Tools )\d+\.\d+\.\d+' "$script_dir/README.md")
+    echo "Version actuelle: $current_version"
+    
+    echo "Récupération de la version du dépôt..."
+    local repo_version
+    repo_version=$(curl -s https://raw.githubusercontent.com/DIGYSKY/Mini-Tools/main/README.md | grep -oP '(?<=Mini-Tools )\d+\.\d+\.\d+')
+    echo "Version du dépôt: $repo_version"
+    
+    if [[ "$current_version" != "$repo_version" ]]; then
+        read -p "Une nouvelle version ($repo_version) est disponible. Voulez-vous mettre à jour Mini-Tools ? (Y/n) " confirm
+        if [[ "$confirm" == "Y" || "$confirm" == "y" || "$confirm" == "" ]]; then
+            echo "Mise à jour de Mini-Tools depuis $repo_url dans le répertoire $script_dir"
+            cd "$script_dir" || { echo "Impossible de changer de répertoire vers $script_dir"; exit 1; }
+            git pull "$repo_url"
+            if [[ $? -eq 0 ]]; then
+                echo "Mise à jour réussie."
+                ./install_MiniTools
+            else
+                echo "Échec de la mise à jour."
+            fi
+        else
+            echo "Mise à jour annulée."
+        fi
     else
-        echo "Update failed."
+        echo "Vous avez déjà la dernière version de Mini-Tools ($current_version)."
     fi
 }
 
