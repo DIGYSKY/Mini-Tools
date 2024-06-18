@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the version of Mini-Tools
-VERSION=$(cat version)
+VERSION=$(grep 'Mini-Tools' mini_tools_list.txt | awk -F'[()]' '{print $2}')
 
 # Function to display the version
 show_version() {
@@ -67,26 +67,44 @@ update_tools() {
     local repo_url="https://github.com/DIGYSKY/Mini-Tools.git"
     local script_dir
     script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-    echo "Vérification de la version actuelle de Mini-Tools..."
-    local current_version
-    if [[ -f "$script_dir/version" ]]; then
-        current_version=$(cat "$script_dir/version")
-        echo "Version actuelle: $current_version"
+    echo "Vérification des versions actuelles des outils..."
+    declare -A current_versions
+    if [[ -f "$script_dir/mini_tools_list.txt" ]]; then
+        while IFS= read -r line; do
+            tool_name=$(echo "$line" | awk -F' ' '{print $1}')
+            tool_version=$(echo "$line" | awk -F'[()]' '{print $2}')
+            current_versions["$tool_name"]="$tool_version"
+        done < "$script_dir/mini_tools_list.txt"
     else
-        echo "Fichier de version local introuvable."
+        echo "Fichier mini_tools_list.txt local introuvable."
+        return 1
     fi
     
-    echo "Récupération de la version du dépôt..."
-    local repo_version
-    repo_version=$(curl -s https://raw.githubusercontent.com/DIGYSKY/Mini-Tools/main/version)
-    if [[ -n "$repo_version" ]]; then
-        echo "Version du dépôt: $repo_version"
-    else
-        echo "Impossible de récupérer le fichier de version du dépôt."
+    echo "Récupération des versions des outils du dépôt..."
+    local repo_version_content
+    repo_version_content=$(curl -s https://raw.githubusercontent.com/DIGYSKY/Mini-Tools/main/mini_tools_list.txt)
+    if [[ -z "$repo_version_content" ]]; then
+        echo "Impossible de récupérer le fichier mini_tools_list.txt du dépôt."
+        return 1
     fi
     
-    if version_greater "$repo_version" "$current_version"; then
-        read -p "Une nouvelle version ($repo_version) est disponible. Voulez-vous mettre à jour Mini-Tools ? (Y/n) " confirm
+    declare -A repo_versions
+    while IFS= read -r line; do
+        tool_name=$(echo "$line" | awk -F' ' '{print $1}')
+        tool_version=$(echo "$line" | awk -F'[()]' '{print $2}')
+        repo_versions["$tool_name"]="$tool_version"
+    done <<< "$repo_version_content"
+    
+    local updates_available=false
+    for tool in "${!repo_versions[@]}"; do
+        if version_greater "${repo_versions[$tool]}" "${current_versions[$tool]}"; then
+            echo "Une nouvelle version de $tool est disponible: ${repo_versions[$tool]} (actuelle: ${current_versions[$tool]})"
+            updates_available=true
+        fi
+    done
+    
+    if $updates_available; then
+        read -p "Des mises à jour sont disponibles. Voulez-vous mettre à jour Mini-Tools ? (Y/n) " confirm
         if [[ "$confirm" == "Y" || "$confirm" == "y" || "$confirm" == "" ]]; then
             echo "Mise à jour de Mini-Tools depuis $repo_url dans le répertoire $script_dir"
             cd "$script_dir" || { echo "Impossible de changer de répertoire vers $script_dir"; exit 1; }
@@ -101,7 +119,7 @@ update_tools() {
             echo "Mise à jour annulée."
         fi
     else
-        echo "Vous avez déjà la dernière version de Mini-Tools ($current_version)."
+        echo "Tous les outils sont à jour."
     fi
 }
 
