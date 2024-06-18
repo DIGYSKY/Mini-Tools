@@ -87,14 +87,22 @@ check_and_install() {
     fi
 }
 
-# Fonction pour rendre tous les outils exécutables
+# Fonction pour rendre les outils exécutables à partir d'un fichier de configuration spécifique
 make_executable() {
-    local tool=$1
-    if [[ -f $tool ]]; then
-        chmod +x $tool
-        echo "$tool est maintenant exécutable."
+    local config_file="mini_tools_list.txt"
+    if [[ -f $config_file ]]; then
+        while IFS= read -r line; do
+            tool=$(echo "$line" | awk -F'"' '{print $2}')
+            echo "Traitement de l'outil: $tool"
+            if [[ -f $tool ]]; then
+                chmod +x "$tool"
+                echo "$tool est maintenant exécutable."
+            else
+                echo "Fichier $tool introuvable, impossible de rendre exécutable."
+            fi
+        done < "$config_file"
     else
-        echo "Fichier $tool introuvable, impossible de rendre exécutable."
+        echo "Le fichier $config_file est introuvable."
     fi
 }
 

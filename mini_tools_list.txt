@@ -1,1 +1,1 @@
-portsmanager
+Ports Manager "portsmanager" (1.0.0) use portmanager --help
