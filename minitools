@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the version of Mini-Tools
-VERSION="1.2.1"
+VERSION=$(cat version)
 
 # Function to display the version
 show_version() {
@@ -60,26 +60,21 @@ update_tools() {
     script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
     echo "Vérification de la version actuelle de Mini-Tools..."
     local current_version
-    if [[ -f "$script_dir/README.md" ]]; then
-        current_version=$(grep -oE 'Mini-Tools [0-9]+\.[0-9]+\.[0-9]+' "$script_dir/README.md" | awk '{print $3}')
-        echo "Contenu de README.md local:"
-        cat "$script_dir/README.md"
+    if [[ -f "$script_dir/version" ]]; then
+        current_version=$(cat "$script_dir/version")
+        echo "Version actuelle: $current_version"
     else
-        echo "README.md local introuvable."
+        echo "Fichier de version local introuvable."
     fi
-    echo "Version actuelle: $current_version"
     
     echo "Récupération de la version du dépôt..."
     local repo_version
-    local repo_readme=$(curl -s https://raw.githubusercontent.com/DIGYSKY/Mini-Tools/main/README.md)
-    if [[ -n "$repo_readme" ]]; then
-        repo_version=$(echo "$repo_readme" | grep -oE 'Mini-Tools [0-9]+\.[0-9]+\.[0-9]+' | awk '{print $3}')
-        echo "Contenu de README.md du dépôt:"
-        echo "$repo_readme"
+    repo_version=$(curl -s https://raw.githubusercontent.com/DIGYSKY/Mini-Tools/main/version)
+    if [[ -n "$repo_version" ]]; then
+        echo "Version du dépôt: $repo_version"
     else
-        echo "Impossible de récupérer README.md du dépôt."
+        echo "Impossible de récupérer le fichier de version du dépôt."
     fi
-    echo "Version du dépôt: $repo_version"
     
     if [[ "$current_version" != "$repo_version" ]]; then
         read -p "Une nouvelle version ($repo_version) est disponible. Voulez-vous mettre à jour Mini-Tools ? (Y/n) " confirm
