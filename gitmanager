@@ -1,0 +1,111 @@
+#!/bin/bash
+
+# Fonction pour afficher l'aide
+show_help() {
+    echo "Usage: gitmanager [options]"
+    echo
+    echo "Options:"
+    echo "  -s, --show               Show all Git repositories in the user directory"
+    echo "  -f, --find <keyword>     Find Git repositories containing the keyword"
+    echo "  -h, --help               Display this help and exit"
+}
+
+# Fonction pour afficher tous les dépôts Git avec une barre de progression
+show_repos() {
+    echo "Searching for Git repositories..."
+    local total_repos=0
+    local current_count=0
+
+    # Find and count the .git directories
+    total_repos=$(find ~ -maxdepth 5 -type d \( -name .git -o -path '*/.*' -prune \) -a -name .git -print 2>/dev/null | wc -l)
+
+    if [ $total_repos -eq 0 ]; then
+        echo "No Git repositories found."
+        return
+    fi
+
+    find ~ -maxdepth 5 -type d \( -name .git -o -path '*/.*' -prune \) -a -name .git -print 2>/dev/null | while read -r repo; do
+        current_count=$((current_count + 1))
+        repo_path=$(dirname "$repo")
+        repo_name=$(basename "$repo_path")
+
+        # Clear the previous line
+        printf "\r\033[K"
+
+        # Display the repository information
+        printf "\033[31m%s\033[0m:\n%s\n\n" "$repo_name" "$repo_path"
+
+        # Display the progress
+        progress=$((current_count * 100 / total_repos))
+        printf "\rProgress: %d%%" "$progress"
+    done
+    echo -e "\nDone."
+}
+
+# Fonction pour rechercher des dépôts Git contenant un mot-clé avec une barre de progression
+find_repos() {
+    local keyword=$1
+    echo "Searching for Git repositories containing the keyword '$keyword'..."
+    local total_repos=0
+    local current_count=0
+
+    # Find and count the .git directories
+    total_repos=$(find ~ -maxdepth 5 -type d \( -name .git -o -path '*/.*' -prune \) -a -name .git -print 2>/dev/null | wc -l)
+
+    if [ $total_repos -eq 0 ]; then
+        echo "No Git repositories found."
+        return
+    fi
+
+    find ~ -maxdepth 5 -type d \( -name .git -o -path '*/.*' -prune \) -a -name .git -print 2>/dev/null | while read -r repo; do
+        current_count=$((current_count + 1))
+        repo_path=$(dirname "$repo")
+        repo_name=$(basename "$repo_path")
+
+        if [[ "$repo_name" == *"$keyword"* ]]; then
+            # Clear the previous line
+            printf "\r\033[K"
+
+            # Display the repository information
+            printf "\033[31m%s\033[0m:\n%s\n\n" "$repo_name" "$repo_path"
+        fi
+
+        # Display the progress
+        progress=$((current_count * 100 / total_repos))
+        printf "\rProgress: %d%%" "$progress"
+    done
+    echo -e "\nDone."
+}
+
+# Analyser les arguments de la ligne de commande
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -s|--show)
+            show=true
+            shift
+            ;;
+        -f|--find)
+            find=true
+            keyword=$2
+            shift 2
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            echo "Invalid option: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+# Exécuter les fonctions basées sur les options fournies
+if [[ "$show" == true ]]; then
+    show_repos
+fi
+
+if [[ "$find" == true ]]; then
+    find_repos "$keyword"
+fi
