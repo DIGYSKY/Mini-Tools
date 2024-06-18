@@ -96,9 +96,9 @@ make_executable() {
             echo "Traitement de l'outil: $tool"
             if [[ -f $tool ]]; then
                 chmod +x "$tool"
-                echo "$tool est maintenant exécutable."
+                printf "\e[32m%s est maintenant exécutable.\e[0m\n" "$tool"
             else
-                echo "Fichier $tool est indisponible."
+                printf "\e[31mFichier %s est indisponible.\e[0m\n" "$tool"
             fi
         done < "$config_file"
     else
@@ -119,9 +119,7 @@ fi
 read -p "Voulez-vous rendre les outils exécutables ? (Y/n) " make_exec_choice
 if [[ "$make_exec_choice" == "Y" || "$make_exec_choice" == "y" || "$make_exec_choice" == "" ]]; then
     if [[ -f "mini_tools_list.txt" ]]; then
-        while IFS= read -r tool; do
-            make_executable $tool
-        done < "mini_tools_list.txt"
+        make_executable
     else
         echo "Le fichier mini_tools_list.txt est introuvable."
     fi

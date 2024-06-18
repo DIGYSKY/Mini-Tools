@@ -1,0 +1,109 @@
+#!/bin/bash
+
+# Function to display help
+show_help() {
+    echo "Usage: envmanager [options] <VARIABLE>"
+    echo
+    echo "Options:"
+    echo "  -s, --show VARIABLE         Show the value of an environment variable"
+    echo "  -a, --add VARIABLE=VALUE    Add a new environment variable"
+    echo "  -d, --delete VARIABLE       Delete an environment variable"
+    echo "  -l, --list                  List all environment variables"
+    echo "  -f, --find VARIABLE         Find an environment variable by name"
+    echo "  -h, --help                  Display this help"
+}
+
+# Function to show the value of an environment variable
+show_variable() {
+    local variable=$1
+    if [[ -z ${!variable} ]]; then
+        echo "The variable $variable is not set."
+    else
+        echo "$variable=${!variable}"
+    fi
+}
+
+# Function to add a new environment variable
+add_variable() {
+    local var_value=$1
+    export "$var_value"
+    local var_name=${var_value%%=*}
+    echo "Variable $var_name added successfully."
+}
+
+# Function to delete an environment variable with confirmation
+delete_variable() {
+    local variable=$1
+    if [[ -z ${!variable} ]]; then
+        echo "The variable $variable is not set."
+        return
+    fi
+    
+    read -p "Are you sure you want to delete the variable $variable? (Y/n) " confirm
+    if [[ "$confirm" == "Y" || "$confirm" == "y" ]]; then
+        unset "$variable"
+        echo "Variable $variable deleted successfully."
+    else
+        echo "Deletion canceled."
+    fi
+}
+
+# Function to list all environment variables
+list_variables() {
+    env
+}
+
+# Function to find an environment variable by name
+find_variable() {
+    local variable=$1
+    env | grep "$variable"
+    if [[ $? -ne 0 ]]; then
+        echo "No environment variable found containing \"$variable\"."
+    fi
+}
+
+# Parse command line arguments
+case "$1" in
+    -s|--show)
+        if [[ -n "$2" ]]; then
+            show_variable "$2"
+        else
+            echo "Please specify the variable name."
+            show_help
+        fi
+        ;;
+    -a|--add)
+        if [[ -n "$2" ]]; then
+            add_variable "$2"
+        else
+            echo "Please specify the variable to add in the format VARIABLE=VALUE."
+            show_help
+        fi
+        ;;
+    -d|--delete)
+        if [[ -n "$2" ]]; then
+            delete_variable "$2"
+        else
+            echo "Please specify the variable name."
+            show_help
+        fi
+        ;;
+    -l|--list)
+        list_variables
+        ;;
+    -f|--find)
+        if [[ -n "$2" ]]; then
+            find_variable "$2"
+        else
+            echo "Please specify the name or part of the name of the variable to search for."
+            show_help
+        fi
+        ;;
+    -h|--help)
+        show_help
+        ;;
+    *)
+        echo "Invalid option: $1"
+        show_help
+        ;;
+esac

@@ -12,6 +12,11 @@ Mini-Tools is a collection of useful tools for managing various aspects of your 
     - [Options](#options)
     - [Examples](#examples)
     - [Prerequisites](#prerequisites)
+  - [Env Manager](#env-manager)
+    - [Usage](#usage)
+    - [Options](#options)
+    - [Examples](#examples)
+    - [Prerequisites](#prerequisites)
 - [Contributions](#contributions)
 - [License](#license)
 - [Authors](#authors)
@@ -133,6 +138,63 @@ Before using `portsmanager`, ensure that your system meets the following prerequ
    chmod +x portsmanager
    ```
 
+### Env Manager
+
+`envmanager` is a tool for managing environment variables, allowing you to show, add, delete, list, and find environment variables.
+
+#### Usage
+
+```bash
+envmanager [options]
+```
+
+#### Options
+
+- `-s, --show VARIABLE`: Show the value of an environment variable.
+- `-a, --add VARIABLE=VALUE`: Add a new environment variable.
+- `-d, --delete VARIABLE`: Delete an environment variable.
+- `-l, --list`: List all environment variables.
+- `-f, --find VARIABLE`: Find an environment variable by name.
+- `-h, --help`: Display this help message and exit.
+
+#### Examples
+
+- Show the value of an environment variable:
+  ```bash
+  envmanager -s VARIABLE
+  ```
+
+- Add a new environment variable:
+  ```bash
+  envmanager -a VARIABLE=VALUE
+  ```
+
+- Delete an environment variable with confirmation:
+  ```bash
+  envmanager -d VARIABLE
+  ```
+
+- List all environment variables:
+  ```bash
+  envmanager -l
+  ```
+
+- Find an environment variable by name:
+  ```bash
+  envmanager -f VARIABLE
+  ```
+
+#### Prerequisites
+
+Before using `envmanager`, ensure that your system meets the following prerequisites:
+
+1. **Operating System**: `envmanager` is designed to work on Unix-based operating systems, such as Linux and macOS.
+2. **Shell**: You need to use a compatible shell such as `bash`, `zsh`, or any other POSIX-compliant shell.
+3. **Executable Permissions**: Ensure the `envmanager` script is executable. You can set the executable permissions with the following command:
+   ```bash
+   chmod +x envmanager
+   ```
+
 ## Contributions
 
 Contributions are welcome! If you have ideas for improvements or new tools to add, feel free to open an issue or a pull request.
@@ -158,3 +220,4 @@ Add your username in the "Authors" section of the README.md with your contributi
 ## License
 
 This project is licensed under the GNU GPLv3 license. See the [LICENSE](LICENSE) file for details.
+

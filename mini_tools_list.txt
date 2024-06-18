@@ -1,1 +1,2 @@
 Ports-Manager "portsmanager" (1.0.0) [portsmanager is a port management tool that allows you to list and manage processes listening on specific ports or on all open ports.]
+Environment-Variables-Manager "envmanager" (1.0.0) [envmanager is a tool for managing environment variables, allowing you to show, add, delete, list, and find environment variables.]
