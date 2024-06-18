@@ -13,6 +13,7 @@ Mini-Tools est une collection d'outils utiles pour la gestion de divers aspects 
     - [Prérequis](#prérequis)
 - [Contributions](#contributions)
 - [Licence](#licence)
+- [Auteurs](#auteurs)
 
 ## Installation
 
@@ -126,6 +127,12 @@ Les contributions sont les bienvenues ! Si vous avez des idées d'améliorations
 Pour ajouter un Tools à Mini-Tools, il faut l'ajouter dans le fichier mini_tools_list.txt
 
 Si un outil nécessite un outil spécifique, il faut l'ajouter dans le fichier install_list.txt
+
+Ajouter votre pseudo dans la section "Auteurs" du README.md
+
+## Auteurs
+
+- [DIGYSKY "lilyan CHAUVEAU"](https://github.com/DIGYSKY) (Initiateur du projet)
 
 ## Licence
 
