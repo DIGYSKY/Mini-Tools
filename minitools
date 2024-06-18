@@ -40,6 +40,7 @@ list_tools() {
                     printf "%-20s %-20s %-10s %-50s\n" "" "" "" "$line"
                 fi
             done <<< "$description"
+            printf "\n"
         done < "$script_dir/mini_tools_list.txt"
     else
         echo "Le fichier mini_tools_list.txt est introuvable."
