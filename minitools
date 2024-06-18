@@ -126,7 +126,7 @@ update_tools() {
             printf "\e[32mMise à jour de Mini-Tools depuis %s dans le répertoire %s\e[0m\n" "$repo_url" "$script_dir"
             cd "$script_dir" || { printf "\e[31mImpossible de changer de répertoire vers %s\e[0m\n" "$script_dir"; exit 1; }
             
-            git pull "$repo_url"
+            git pull --rebase --force "$repo_url"
             if [[ $? -eq 0 ]]; then
                 printf "\e[32mMise à jour réussie.\e[0m\n"
                 install_tools
