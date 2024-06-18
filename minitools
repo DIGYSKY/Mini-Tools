@@ -24,13 +24,22 @@ list_tools() {
     local script_dir
     script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
     if [[ -f "$script_dir/mini_tools_list.txt" ]]; then
-        printf "%-20s %-30s %-10s\n" "Tool" "File" "Version"
-        printf "%-20s %-30s %-10s\n" "----" "----" "-------"
+        printf "%-20s %-20s %-10s %-50s\n" "Tool" "File" "Version" "Description"
+        printf "%-20s %-20s %-10s %-50s\n" "----" "----" "-------" "-----------"
         while IFS= read -r tool; do
             name=$(echo "$tool" | awk -F' ' '{print $1}')
             file=$(echo "$tool" | awk -F'"' '{print $2}')
             version=$(echo "$tool" | awk -F'[()]' '{print $2}')
-            printf "%-20s %-30s %-10s\n" "$name" "$file" "$version"
+            description=$(echo "$tool" | awk -F'[][]' '{print $2}' | fold -s -w 50)
+            first_line=true
+            while IFS= read -r line; do
+                if $first_line; then
+                    printf "%-20s %-20s %-10s %-50s\n" "$name" "$file" "$version" "$line"
+                    first_line=false
+                else
+                    printf "%-20s %-20s %-10s %-50s\n" "" "" "" "$line"
+                fi
+            done <<< "$description"
         done < "$script_dir/mini_tools_list.txt"
     else
         echo "Le fichier mini_tools_list.txt est introuvable."
