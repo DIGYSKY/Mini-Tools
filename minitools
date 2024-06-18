@@ -14,7 +14,7 @@ show_help() {
     echo
     echo "Options:"
     echo "  -v, --version        Display the version of Mini-Tools"
-    echo "  -l, --list-tools     List available tools in mini_tools_list.txt"
+    echo "  -l, --list-tools     List available tools and unavailable tools"
     echo "  -up, --update        Update Mini-Tools from the repository"
     echo "  -h, --help           Display this help"
 }
@@ -24,8 +24,8 @@ list_tools() {
     local script_dir
     script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
     if [[ -f "$script_dir/mini_tools_list.txt" ]]; then
-        printf "%-20s %-20s %-10s %-50s\n" "Tool" "File" "Version" "Description"
-        printf "%-20s %-20s %-10s %-50s\n" "----" "----" "-------" "-----------"
+        printf "%-20s %-20s %-10s %-50s\n" "Tool" "Commande" "Version" "Description"
+        printf "%-20s %-20s %-10s %-50s\n" "----" "--------" "-------" "-----------"
         while IFS= read -r tool; do
             name=$(echo "$tool" | awk -F' ' '{print $1}')
             file=$(echo "$tool" | awk -F'"' '{print $2}')
@@ -34,7 +34,11 @@ list_tools() {
             first_line=true
             while IFS= read -r line; do
                 if $first_line; then
-                    printf "%-20s %-20s %-10s %-50s\n" "$name" "$file" "$version" "$line"
+                    if [[ -f "$script_dir/$file" ]]; then
+                        printf "\e[32m%-20s\e[0m %-20s %-10s %-50s\n" "$name" "$file" "$version" "$line"
+                    else
+                        printf "\e[31m%-20s\e[0m %-20s %-10s %-50s\n" "$name" "$file" "$version" "$line"
+                    fi
                     first_line=false
                 else
                     printf "%-20s %-20s %-10s %-50s\n" "" "" "" "$line"
@@ -42,6 +46,8 @@ list_tools() {
             done <<< "$description"
             printf "\n"
         done < "$script_dir/mini_tools_list.txt"
+        printf "\e[32mAvailable tools\e[0m\n"
+        printf "\e[31mUnavailable tools\e[0m\n"
     else
         echo "Le fichier mini_tools_list.txt est introuvable."
     fi

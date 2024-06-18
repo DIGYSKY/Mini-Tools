@@ -98,7 +98,7 @@ make_executable() {
                 chmod +x "$tool"
                 echo "$tool est maintenant exécutable."
             else
-                echo "Fichier $tool introuvable, impossible de rendre exécutable."
+                echo "Fichier $tool est indisponible."
             fi
         done < "$config_file"
     else
