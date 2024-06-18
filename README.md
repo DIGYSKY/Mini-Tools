@@ -75,6 +75,17 @@ portsmanager [--help|-h]
 - Lister tous les ports ouverts :
   ```bash
   portsmanager --all
+  Port: 22
+  PID     User        Application         Protocol        Name
+  1111    root        sshd                TCP             sshd
+
+  Port: 80
+  PID     User        Application         Protocol        Name
+  1234    root        nginx               TCP             nginx
+
+  Port: 443
+  PID     User        Application         Protocol        Name
+  5678    root        nginx               TCP             nginx
   ```
 
 - Lister tous les ports ouverts et tuer les processus après confirmation :
