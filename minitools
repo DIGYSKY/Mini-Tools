@@ -58,10 +58,13 @@ case "$1" in
         update_tools
         ;;
     -h|--help)
+        show_version
+        echo
         show_help
         ;;
     *)
-        echo "Invalid option: $1"
+        show_version
+        echo
         show_help
         ;;
 esac

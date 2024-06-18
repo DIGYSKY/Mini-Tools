@@ -1,7 +1,11 @@
 #!/bin/bash
 
+VERSION=$(grep 'Ports Manager' mini_tools_list.txt | awk -F'[()]' '{print $2}')
+
 # Function to display help in French
 show_help_fr() {
+    echo "Ports Manager $VERSION"
+    echo
     echo "Usage: portsmanager <port> [<port> ...]"
     echo "Usage: portsmanager <port> [<port> ...] [--kill|-k] [-y]"
     echo "Usage: portsmanager [--all|-a]"
@@ -33,6 +37,8 @@ show_help_fr() {
 
 # Function to display help in English
 show_help_en() {
+    echo "Ports Manager $VERSION"
+    echo
     echo "Usage: portsmanager <port> [<port> ...]"
     echo "Usage: portsmanager <port> [<port> ...] [--kill|-k] [-y]"
     echo "Usage: portsmanager [--all|-a]"
@@ -116,7 +122,7 @@ while [[ $# -gt 0 ]]; do
                 shift
             else
                 show_help
-                exit 64  # Exit code for misuse
+                exit 0
             fi
             ;;
     esac
