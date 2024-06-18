@@ -128,11 +128,18 @@ Pour ajouter un Tools à Mini-Tools, il faut l'ajouter dans le fichier mini_tool
 
 Si un outil nécessite un outil spécifique, il faut l'ajouter dans le fichier install_list.txt
 
-Ajouter votre pseudo dans la section "Auteurs" du README.md
+Ajouter votre pseudo dans la section "Auteurs" du README.md avec votre contribution
 
 ## Auteurs
 
 - [DIGYSKY "lilyan CHAUVEAU"](https://github.com/DIGYSKY) (Initiateur du projet)
+  - Création de la structure de Mini-Tools
+  - Création du script install_MiniTools
+  - Création du fichier mini_tools_list.txt
+  - Création du fichier install_list.txt
+  - Création du fichier README.md
+  - Ajout du fichier LICENSE
+  - Création de l'outil Ports Manager
 
 ## Licence
 
