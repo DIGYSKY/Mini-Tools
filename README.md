@@ -153,6 +153,7 @@ Add your username in the "Authors" section of the README.md with your contributi
   - Created the `README.md` file
   - Added the `LICENSE` file
   - Created the Ports Manager tool `portsmanager`
+  - Created main command `minitools`
 
 ## License
 
