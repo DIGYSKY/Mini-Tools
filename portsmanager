@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Fonction pour afficher l'aide en français
+# Function to display help in French
 show_help_fr() {
     echo "Usage: portsmanager <port> [<port> ...]"
     echo "Usage: portsmanager <port> [<port> ...] [--kill|-k] [-y]"
@@ -31,7 +31,7 @@ show_help_fr() {
     echo "  portsmanager --kill-all           Tuer tous les processus écoutant sur tous les ports sans confirmation"
 }
 
-# Fonction pour afficher l'aide en anglais
+# Function to display help in English
 show_help_en() {
     echo "Usage: portsmanager <port> [<port> ...]"
     echo "Usage: portsmanager <port> [<port> ...] [--kill|-k] [-y]"
@@ -59,10 +59,10 @@ show_help_en() {
     echo "  portsmanager --kill-all           Kill all processes listening on all ports without confirmation"
 }
 
-# Déterminer la langue du système
+# Determine the system language
 LANGUAGE=$(defaults read -g AppleLocale | cut -d'_' -f1)
 
-# Fonction pour afficher l'aide dans la langue appropriée
+# Function to display help in the appropriate language
 show_help() {
     case $LANGUAGE in
         fr)
@@ -74,20 +74,20 @@ show_help() {
     esac
 }
 
-# Vérifier si l'utilisateur a demandé l'aide
+# Check if the user requested help
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     show_help
     exit 0
 fi
 
-# Initialiser les variables
+# Initialize variables
 PORTS=()
 ALL_PORTS=false
 KILL_OPTION=false
 KILL_ALL=false
 CONFIRMATION=true
 
-# Analyser les arguments
+# Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --all|-a)
@@ -116,55 +116,55 @@ while [[ $# -gt 0 ]]; do
                 shift
             else
                 show_help
-                exit 64  # Code de sortie pour mauvaise utilisation
+                exit 64  # Exit code for misuse
             fi
             ;;
     esac
 done
 
-# Si ni un port ni l'option --all n'est spécifiée, afficher l'aide
+# If neither a port nor the --all option is specified, display help
 if [[ ${#PORTS[@]} -eq 0 && "$ALL_PORTS" == false && "$KILL_ALL" == false ]]; then
     show_help
-    exit 64  # Code de sortie pour mauvaise utilisation
+    exit 64  # Exit code for misuse
 fi
 
-# Fonction pour afficher et éventuellement tuer les processus par port
+# Function to display and optionally kill processes by port
 process_port() {
     local port=$1
     lsof_output=$(sudo lsof -i :$port | grep LISTEN)
     
-    # Vérifier si lsof a trouvé des processus
+    # Check if lsof found any processes
     if [[ -z "$lsof_output" ]]; then
         echo "No process is listening on port $port"
         return
     fi
 
-    # Afficher l'en-tête
+    # Display header
     echo -e "\nPort: $port"
     echo -e "PID\tUser\tApplication\tProtocol\tName"
 
-    # Lire la sortie de lsof ligne par ligne
+    # Read lsof output line by line
     echo "$lsof_output" | while IFS= read -r line; do
-        # Extraire les informations nécessaires
+        # Extract necessary information
         pid=$(echo "$line" | awk '{print $2}')
         user=$(echo "$line" | awk '{print $3}')
         address=$(echo "$line" | awk '{print $9}')
         protocol=$(echo "$line" | awk '{print $8}')
         name=$(echo "$line" | awk '{print $1}')
         
-        # Obtenir le nom de l'application à partir du PID
+        # Get the application name from the PID
         app_name=$(ps -p "$pid" -o comm= 2>/dev/null)
 
-        # Vérifier si le nom de l'application a été trouvé
+        # Check if the application name was found
         if [[ -z "$app_name" ]]; then
             app_name="N/A"
         fi
         
-        # Afficher toutes les informations
+        # Display all information
         echo -e "$pid\t$user\t$app_name\t$protocol\t$name"
     done
 
-    # Confirmation pour tuer les processus
+    # Confirmation to kill processes
     if [[ "$KILL_OPTION" == true ]]; then
         if [[ "$CONFIRMATION" == true ]]; then
             read -p "Do you want to kill all processes listening on port $port? (Y/n default: n) " confirm
@@ -189,13 +189,13 @@ process_port() {
     fi
 }
 
-# Traitement des ports spécifiés ou de tous les ports
+# Process specified ports or all ports
 if [[ "$ALL_PORTS" == true || "$KILL_ALL" == true ]]; then
-    # Récupérer tous les ports ouverts
+    # Retrieve all open ports
     all_ports=$(sudo lsof -i -P -n | grep LISTEN | awk -F':' '{print $2}' | awk '{print $1}' | sort | uniq)
     for port in $all_ports; do
         process_port $port
-        # Tuer tous les processus sans confirmation si l'option --kill-all est spécifiée
+        # Kill all processes without confirmation if the --kill-all option is specified
         if [[ "$KILL_ALL" == true ]]; then
             echo "$lsof_output" | while IFS= read -r line; do
                 pid=$(echo "$line" | awk '{print $2}')
@@ -211,10 +211,10 @@ if [[ "$ALL_PORTS" == true || "$KILL_ALL" == true ]]; then
         fi
     done
 else
-    # Traiter les ports spécifiés un par un
+    # Process specified ports one by one
     for port in "${PORTS[@]}"; do
         process_port $port
     done
 fi
 
-exit 0  # Code de sortie pour succès
+exit 0  # Exit code for success
