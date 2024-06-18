@@ -21,13 +21,19 @@ show_help() {
 
 # Function to list available tools
 list_tools() {
-    if [[ -f "mini_tools_list.txt" ]]; then
-        echo "Available tools:"
+    local script_dir
+    script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    if [[ -f "$script_dir/mini_tools_list.txt" ]]; then
+        printf "%-20s %-30s %-10s\n" "Tool" "File" "Version"
+        printf "%-20s %-30s %-10s\n" "----" "----" "-------"
         while IFS= read -r tool; do
-            echo "- $tool"
-        done < "mini_tools_list.txt"
+            name=$(echo "$tool" | awk -F' ' '{print $1}')
+            file=$(echo "$tool" | awk -F'"' '{print $2}')
+            version=$(echo "$tool" | awk -F'[()]' '{print $2}')
+            printf "%-20s %-30s %-10s\n" "$name" "$file" "$version"
+        done < "$script_dir/mini_tools_list.txt"
     else
-        echo "The file mini_tools_list.txt is not found."
+        echo "Le fichier mini_tools_list.txt est introuvable."
     fi
 }
 
