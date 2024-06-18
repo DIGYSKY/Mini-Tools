@@ -68,12 +68,14 @@ update_tools() {
     local script_dir
     script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
     echo "Vérification des versions actuelles des outils..."
-    declare -A current_versions
+    local current_tools=()
+    local current_versions=()
     if [[ -f "$script_dir/mini_tools_list.txt" ]]; then
         while IFS= read -r line; do
             tool_name=$(echo "$line" | awk -F' ' '{print $1}')
             tool_version=$(echo "$line" | awk -F'[()]' '{print $2}')
-            current_versions["$tool_name"]="$tool_version"
+            current_tools+=("$tool_name")
+            current_versions+=("$tool_version")
         done < "$script_dir/mini_tools_list.txt"
     else
         echo "Fichier mini_tools_list.txt local introuvable."
@@ -88,17 +90,30 @@ update_tools() {
         return 1
     fi
     
-    declare -A repo_versions
+    local repo_tools=()
+    local repo_versions=()
     while IFS= read -r line; do
         tool_name=$(echo "$line" | awk -F' ' '{print $1}')
         tool_version=$(echo "$line" | awk -F'[()]' '{print $2}')
-        repo_versions["$tool_name"]="$tool_version"
+        repo_tools+=("$tool_name")
+        repo_versions+=("$tool_version")
     done <<< "$repo_version_content"
     
     local updates_available=false
-    for tool in "${!repo_versions[@]}"; do
-        if version_greater "${repo_versions[$tool]}" "${current_versions[$tool]}"; then
-            echo "Une nouvelle version de $tool est disponible: ${repo_versions[$tool]} (actuelle: ${current_versions[$tool]})"
+    for i in "${!repo_tools[@]}"; do
+        local found=false
+        for j in "${!current_tools[@]}"; do
+            if [[ "${repo_tools[$i]}" == "${current_tools[$j]}" ]]; then
+                found=true
+                if version_greater "${repo_versions[$i]}" "${current_versions[$j]}"; then
+                    echo "Une nouvelle version de ${repo_tools[$i]} est disponible: ${repo_versions[$i]} (actuelle: ${current_versions[$j]})"
+                    updates_available=true
+                fi
+                break
+            fi
+        done
+        if ! $found; then
+            echo "Un nouvel outil est disponible: ${repo_tools[$i]} (version: ${repo_versions[$i]})"
             updates_available=true
         fi
     done

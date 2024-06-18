@@ -4,17 +4,21 @@
 add_to_path() {
     local shell_rc=$1
     if [[ -f ~/$shell_rc ]]; then
-        echo "Ajout de Mini-Tools au PATH dans $shell_rc"
-        export PATH=$PATH:$(pwd)
-        echo 'export PATH=$PATH:'$(pwd) >> ~/$shell_rc
-        echo "Mini-Tools a été ajouté au PATH dans $shell_rc. Veuillez exécuter 'source ~/$shell_rc' pour appliquer les changements."
+        if grep -q 'export PATH=$PATH:'$(pwd) ~/$shell_rc; then
+            echo "Mini-Tools est déjà dans le PATH dans $shell_rc"
+        else
+            echo "Ajout de Mini-Tools au PATH dans $shell_rc"
+            export PATH=$PATH:$(pwd)
+            echo 'export PATH=$PATH:'$(pwd) >> ~/$shell_rc
+            echo "Mini-Tools a été ajouté au PATH dans $shell_rc. Veuillez exécuter 'source ~/$shell_rc' pour appliquer les changements."
+        fi
     else
         echo "Le fichier $shell_rc n'existe pas. Aucun changement n'a été fait au PATH."
     fi
 }
 
 # Demander à l'utilisateur quel shell il utilise
-read -p "Voulez-vous ajouter Mini-Tools au PATH pour bash, zsh, ou les deux ? (bash/zsh/both/n) " shell_choice
+read -p "Voulez-vous ajouter Mini-Tools au PATH pour bash, zsh, ou les deux ? (bash/zsh/both/n default: no) " shell_choice
 case $shell_choice in
     bash)
         add_to_path ".bashrc"
