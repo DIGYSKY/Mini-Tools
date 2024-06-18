@@ -123,6 +123,8 @@ Avant d'utiliser `portsmanager`, assurez-vous que votre système dispose des pr�
 
 Les contributions sont les bienvenues ! Si vous avez des idées d'améliorations ou des nouveaux outils à ajouter, n'hésitez pas à ouvrir une issue ou une pull request.
 
+Pour ajouter un Tools à Mini-Tools, il faut l'ajouter dans le fichier mini_tools_list.txt
+
 Si un outil nécessite un outil spécifique, il faut l'ajouter dans le fichier install_list.txt
 
 ## Licence
