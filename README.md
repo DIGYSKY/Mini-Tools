@@ -7,6 +7,10 @@ Mini-Tools est une collection d'outils utiles pour la gestion de divers aspects 
 - [Installation](#installation)
 - [Outils disponibles](#outils-disponibles)
   - [Ports Manager](#ports-manager)
+    - [Utilisation](#utilisation)
+    - [Options](#options)
+    - [Exemples](#exemples)
+    - [Prérequis](#prérequis)
 - [Contributions](#contributions)
 - [Licence](#licence)
 
@@ -97,6 +101,28 @@ portsmanager [--help|-h]
   ```bash
   portsmanager --kill-all
   ```
+
+## Prérequis
+
+Avant d'utiliser `portsmanager`, assurez-vous que votre système dispose des prérequis suivants :
+
+1. **Système d'exploitation** : `portsmanager` est conçu pour fonctionner sur les systèmes d'exploitation basés sur Unix, comme Linux et macOS.
+2. **Permissions sudo** : Certaines commandes nécessitent des permissions élevées pour lister et tuer les processus. Assurez-vous que votre utilisateur dispose des permissions sudo.
+3. **Outils installés** : Les outils suivants doivent être installés et disponibles dans votre PATH :
+   - `lsof` : Utilisé pour lister les processus écoutant sur les ports.
+   - `ps` : Utilisé pour obtenir le nom des applications à partir de leurs PID.
+   
+   Vous pouvez vérifier l'installation de ces outils avec les commandes suivantes :
+   ```bash
+   which lsof
+   which ps
+   ```
+   Si ces commandes ne renvoient aucun chemin, vous devez installer les outils nécessaires.
+
+4. **Permissions d'exécution** : Assurez-vous que le script `portsmanager` est exécutable. Vous pouvez définir les permissions d'exécution avec la commande :
+   ```bash
+   chmod +x portsmanager
+   ```
 
 ## Contributions
 
