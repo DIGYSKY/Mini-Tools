@@ -2,3 +2,4 @@ lsof
 ps
 grep
 env
+find
