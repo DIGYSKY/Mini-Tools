@@ -53,6 +53,7 @@ portsmanager [--help|-h]
 - `-y`: Optional. Used with `--kill` to kill the processes without confirmation.
 - `--all, -a`: List all open ports.
 - `--kill-all, -ka`: Kill all processes listening on all ports without confirmation.
+- `-a -k -y` is the same as `-ka`.
 - `--help, -h`: Display this help message and exit.
 
 #### Examples
