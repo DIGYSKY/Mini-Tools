@@ -1,49 +1,52 @@
 #!/bin/bash
 
-# Définir la version de Mini-Tools
+# Define the version of Mini-Tools
 VERSION="1.0.0"
 
-# Fonction pour afficher la version
+# Function to display the version
 show_version() {
     echo "Mini-Tools version $VERSION"
 }
 
-# Fonction pour afficher l'aide
+# Function to display help
 show_help() {
     echo "Usage: minitools [options]"
     echo
     echo "Options:"
-    echo "  -v, --version        Afficher la version de Mini-Tools"
-    echo "  -l, --list-tools     Lister les outils disponibles dans mini_tools_list.txt"
-    echo "  -up, --update        Mettre à jour Mini-Tools à partir du dépôt"
-    echo "  -h, --help           Afficher cette aide"
+    echo "  -v, --version        Display the version of Mini-Tools"
+    echo "  -l, --list-tools     List available tools in mini_tools_list.txt"
+    echo "  -up, --update        Update Mini-Tools from the repository"
+    echo "  -h, --help           Display this help"
 }
 
-# Fonction pour lister les outils disponibles
+# Function to list available tools
 list_tools() {
     if [[ -f "mini_tools_list.txt" ]]; then
-        echo "Outils disponibles :"
+        echo "Available tools:"
         while IFS= read -r tool; do
             echo "- $tool"
         done < "mini_tools_list.txt"
     else
-        echo "Le fichier mini_tools_list.txt est introuvable."
+        echo "The file mini_tools_list.txt is not found."
     fi
 }
 
-# Fonction pour mettre à jour Mini-Tools à partir du dépôt
+# Function to update Mini-Tools from the repository
 update_tools() {
     local repo_url="https://github.com/DIGYSKY/Mini-Tools.git"
-    echo "Mise à jour de Mini-Tools à partir de $repo_url"
+    local script_dir
+    script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    echo "Updating Mini-Tools from $repo_url in the directory $script_dir"
+    cd "$script_dir" || { echo "Unable to change directory to $script_dir"; exit 1; }
     git pull "$repo_url"
     if [[ $? -eq 0 ]]; then
-        echo "Mise à jour réussie."
+        echo "Update successful."
     else
-        echo "Échec de la mise à jour."
+        echo "Update failed."
     fi
 }
 
-# Analyser les arguments de ligne de commande
+# Parse command line arguments
 case "$1" in
     -v|--version)
         show_version
@@ -58,7 +61,7 @@ case "$1" in
         show_help
         ;;
     *)
-        echo "Option invalide : $1"
+        echo "Invalid option: $1"
         show_help
         ;;
 esac
