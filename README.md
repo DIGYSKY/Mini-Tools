@@ -1,4 +1,4 @@
-# Mini-Tools 1.2.1
+# Mini-Tools 1.2.2
 
 Mini-Tools is a collection of useful tools for managing various aspects of your system. Each tool is designed to solve specific problems efficiently and user-friendly.
 
