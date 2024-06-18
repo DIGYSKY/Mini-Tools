@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Define the version of Mini-Tools
-VERSION=$(grep 'Mini-Tools' mini_tools_list.txt | awk -F'[()]' '{print $2}')
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+VERSION=$(grep 'Mini-Tools' "$script_dir/mini_tools_list.txt" | awk -F'[()]' '{print $2}')
 
 # Function to display the version
 show_version() {
@@ -16,6 +17,7 @@ show_help() {
     echo "  -v, --version        Display the version of Mini-Tools"
     echo "  -l, --list-tools     List available tools and unavailable tools"
     echo "  -up, --update        Update Mini-Tools from the repository"
+    echo "  -i, --install        Install Mini-Tools"
     echo "  -h, --help           Display this help"
 }
 
@@ -126,7 +128,7 @@ update_tools() {
             git pull "$repo_url"
             if [[ $? -eq 0 ]]; then
                 echo "Mise à jour réussie."
-                ./install_MiniTools
+                install_tools
             else
                 echo "Échec de la mise à jour."
             fi
@@ -136,6 +138,10 @@ update_tools() {
     else
         echo "Tous les outils sont à jour."
     fi
+}
+
+install_tools() {
+    cd "$script_dir" && ./install_MiniTools
 }
 
 # Parse command line arguments
@@ -153,6 +159,9 @@ case "$1" in
         show_version
         echo
         show_help
+        ;;
+    -i|--install)
+        install_tools
         ;;
     *)
         show_version
