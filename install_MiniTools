@@ -99,7 +99,7 @@ make_executable() {
     if [[ -f $config_file ]]; then
         while IFS= read -r line; do
             tool=$(echo "$line" | awk -F'"' '{print $2}')
-            echo "Traitement de l'outil: $tool"
+            printf "\e[33mTraitement de l'outil: %s\e[0m\n" "$tool"
             if [[ -f $tool ]]; then
                 chmod +x "$tool"
                 printf "\e[32m%s est maintenant exécutable.\e[0m\n" "$tool"
