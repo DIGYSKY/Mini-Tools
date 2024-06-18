@@ -60,12 +60,25 @@ update_tools() {
     script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
     echo "Vérification de la version actuelle de Mini-Tools..."
     local current_version
-    current_version=$(grep -oP '(?<=Mini-Tools )\d+\.\d+\.\d+' "$script_dir/README.md")
+    if [[ -f "$script_dir/README.md" ]]; then
+        current_version=$(grep -oE 'Mini-Tools [0-9]+\.[0-9]+\.[0-9]+' "$script_dir/README.md" | awk '{print $3}')
+        echo "Contenu de README.md local:"
+        cat "$script_dir/README.md"
+    else
+        echo "README.md local introuvable."
+    fi
     echo "Version actuelle: $current_version"
     
     echo "Récupération de la version du dépôt..."
     local repo_version
-    repo_version=$(curl -s https://raw.githubusercontent.com/DIGYSKY/Mini-Tools/main/README.md | grep -oP '(?<=Mini-Tools )\d+\.\d+\.\d+')
+    local repo_readme=$(curl -s https://raw.githubusercontent.com/DIGYSKY/Mini-Tools/main/README.md)
+    if [[ -n "$repo_readme" ]]; then
+        repo_version=$(echo "$repo_readme" | grep -oE 'Mini-Tools [0-9]+\.[0-9]+\.[0-9]+' | awk '{print $3}')
+        echo "Contenu de README.md du dépôt:"
+        echo "$repo_readme"
+    else
+        echo "Impossible de récupérer README.md du dépôt."
+    fi
     echo "Version du dépôt: $repo_version"
     
     if [[ "$current_version" != "$repo_version" ]]; then
