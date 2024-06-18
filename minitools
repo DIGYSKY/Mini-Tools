@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# Définir la version de Mini-Tools
+VERSION="1.0.0"
+
+# Fonction pour afficher la version
+show_version() {
+    echo "Mini-Tools version $VERSION"
+}
+
+# Fonction pour afficher l'aide
+show_help() {
+    echo "Usage: minitools [options]"
+    echo
+    echo "Options:"
+    echo "  -v, --version        Afficher la version de Mini-Tools"
+    echo "  -l, --list-tools     Lister les outils disponibles dans mini_tools_list.txt"
+    echo "  -up, --update        Mettre à jour Mini-Tools à partir du dépôt"
+    echo "  -h, --help           Afficher cette aide"
+}
+
+# Fonction pour lister les outils disponibles
+list_tools() {
+    if [[ -f "mini_tools_list.txt" ]]; then
+        echo "Outils disponibles :"
+        while IFS= read -r tool; do
+            echo "- $tool"
+        done < "mini_tools_list.txt"
+    else
+        echo "Le fichier mini_tools_list.txt est introuvable."
+    fi
+}
+
+# Fonction pour mettre à jour Mini-Tools à partir du dépôt
+update_tools() {
+    local repo_url="https://github.com/DIGYSKY/Mini-Tools.git"
+    echo "Mise à jour de Mini-Tools à partir de $repo_url"
+    git pull "$repo_url"
+    if [[ $? -eq 0 ]]; then
+        echo "Mise à jour réussie."
+    else
+        echo "Échec de la mise à jour."
+    fi
+}
+
+# Analyser les arguments de ligne de commande
+case "$1" in
+    -v|--version)
+        show_version
+        ;;
+    -l|--list-tools)
+        list_tools
+        ;;
+    -up|--update)
+        update_tools
+        ;;
+    -h|--help)
+        show_help
+        ;;
+    *)
+        echo "Option invalide : $1"
+        show_help
+        ;;
+esac
