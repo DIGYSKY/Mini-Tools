@@ -69,7 +69,7 @@ update_tools() {
     local repo_url="https://github.com/DIGYSKY/Mini-Tools.git"
     local script_dir
     script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-    echo "Vérification des versions actuelles des outils..."
+    printf "\e[33mVérification des versions actuelles des outils...\e[0m\n"
     local current_tools=()
     local current_versions=()
     if [[ -f "$script_dir/mini_tools_list.txt" ]]; then
@@ -80,15 +80,15 @@ update_tools() {
             current_versions+=("$tool_version")
         done < "$script_dir/mini_tools_list.txt"
     else
-        echo "Fichier mini_tools_list.txt local introuvable."
+        printf "\e[31mFichier mini_tools_list.txt local introuvable.\e[0m\n"
         return 1
     fi
     
-    echo "Récupération des versions des outils du dépôt..."
+    printf "\e[33mRécupération des versions des outils du dépôt...\e[0m\n"
     local repo_version_content
     repo_version_content=$(curl -s https://raw.githubusercontent.com/DIGYSKY/Mini-Tools/main/mini_tools_list.txt)
     if [[ -z "$repo_version_content" ]]; then
-        echo "Impossible de récupérer le fichier mini_tools_list.txt du dépôt."
+        printf "\e[31mImpossible de récupérer le fichier mini_tools_list.txt du dépôt.\e[0m\n"
         return 1
     fi
     
@@ -108,14 +108,14 @@ update_tools() {
             if [[ "${repo_tools[$i]}" == "${current_tools[$j]}" ]]; then
                 found=true
                 if version_greater "${repo_versions[$i]}" "${current_versions[$j]}"; then
-                    echo "Une nouvelle version de ${repo_tools[$i]} est disponible: ${repo_versions[$i]} (actuelle: ${current_versions[$j]})"
+                    printf "\e[33mUne nouvelle version de %s est disponible: %s (actuelle: %s)\e[0m\n" "${repo_tools[$i]}" "${repo_versions[$i]}" "${current_versions[$j]}"
                     updates_available=true
                 fi
                 break
             fi
         done
         if ! $found; then
-            echo "Un nouvel outil est disponible: ${repo_tools[$i]} (version: ${repo_versions[$i]})"
+            printf "\e[33mUn nouvel outil est disponible: %s (version: %s)\e[0m\n" "${repo_tools[$i]}" "${repo_versions[$i]}"
             updates_available=true
         fi
     done
@@ -123,20 +123,21 @@ update_tools() {
     if $updates_available; then
         read -p "Des mises à jour sont disponibles. Voulez-vous mettre à jour Mini-Tools ? (Y/n) " confirm
         if [[ "$confirm" == "Y" || "$confirm" == "y" || "$confirm" == "" ]]; then
-            echo "Mise à jour de Mini-Tools depuis $repo_url dans le répertoire $script_dir"
-            cd "$script_dir" || { echo "Impossible de changer de répertoire vers $script_dir"; exit 1; }
+            printf "\e[32mMise à jour de Mini-Tools depuis %s dans le répertoire %s\e[0m\n" "$repo_url" "$script_dir"
+            cd "$script_dir" || { printf "\e[31mImpossible de changer de répertoire vers %s\e[0m\n" "$script_dir"; exit 1; }
+            
             git pull "$repo_url"
             if [[ $? -eq 0 ]]; then
-                echo "Mise à jour réussie."
+                printf "\e[32mMise à jour réussie.\e[0m\n"
                 install_tools
             else
-                echo "Échec de la mise à jour."
+                printf "\e[31mÉchec de la mise à jour.\e[0m\n"
             fi
         else
-            echo "Mise à jour annulée."
+            printf "\e[31mMise à jour annulée.\e[0m\n"
         fi
     else
-        echo "Tous les outils sont à jour."
+        printf "\e[32mTous les outils sont à jour.\e[0m\n"
     fi
 }
 
