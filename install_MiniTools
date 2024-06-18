@@ -67,20 +67,22 @@ fi
 check_and_install() {
     local tool=$1
     if command -v $tool &> /dev/null; then
-        echo "$tool est déjà installé."
+        printf "\e[32m%s est déjà installé.\e[0m\n" "$tool"
     else
-        echo "$tool n'est pas installé."
+        printf "\e[31m%s n'est pas installé.\e[0m\n" "$tool"
         read -p "Voulez-vous installer $tool ? (Y/n) " confirm
         if [[ "$confirm" == "Y" || "$confirm" == "y" || "$confirm" == "" ]]; then
             if [[ "$tool" == "lsof" || "$tool" == "ps" ]]; then
-                echo "$tool fait partie des utilitaires de base de votre système. Assurez-vous que votre système est à jour."
+                printf "\e[31m%s fait partie des utilitaires de base de votre système. Assurez-vous que votre système est à jour.\e[0m\n" "$tool"
             else
                 if [[ "$OS" == "linux" ]]; then
                     sudo apt-get install -y $tool
                 elif [[ "$OS" == "macos" ]]; then
                     brew install $tool
                 else
-                    echo "Système d'exploitation non supporté pour l'installation automatique de $tool."
+                    printf "\e[31mSystème d'exploitation non supporté pour l'installation automatique de %s.\e[0m\n" "$tool"
+                    printf "\e[33mVous devez vérifier la compatibilité manuellement.\e[0m\n"
+                    printf "\e[33mVous pouvez vérifier la compatibilité de %s avec votre système en consultant la documentation.\e[0m\n" "$tool"
                 fi
             fi
         fi
