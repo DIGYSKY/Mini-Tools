@@ -1,3 +1,3 @@
-Mini-Tools "minitools" (1.2.3) [minitools is a manager for managing tools, allowing you to list and update them.]
+Mini-Tools "minitools" (1.2.4) [minitools is a manager for managing tools, allowing you to list and update them.]
 Ports-Manager "portsmanager" (1.0.0) [portsmanager is a port management tool that allows you to list and manage processes listening on specific ports or on all open ports.]
 Env-Manager "envmanager" (1.0.0) [envmanager is a tool for managing environment variables, allowing you to show, add, delete, list, and find environment variables.]
