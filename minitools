@@ -53,6 +53,15 @@ list_tools() {
     fi
 }
 
+# Function to compare versions
+version_greater() {
+    if [[ "$(printf '%s\n' "$1" "$2" | sort -V | head -n 1)" != "$1" ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Function to update Mini-Tools from the repository
 update_tools() {
     local repo_url="https://github.com/DIGYSKY/Mini-Tools.git"
@@ -76,7 +85,7 @@ update_tools() {
         echo "Impossible de récupérer le fichier de version du dépôt."
     fi
     
-    if [[ "$current_version" != "$repo_version" ]]; then
+    if version_greater "$repo_version" "$current_version"; then
         read -p "Une nouvelle version ($repo_version) est disponible. Voulez-vous mettre à jour Mini-Tools ? (Y/n) " confirm
         if [[ "$confirm" == "Y" || "$confirm" == "y" || "$confirm" == "" ]]; then
             echo "Mise à jour de Mini-Tools depuis $repo_url dans le répertoire $script_dir"
