@@ -20,7 +20,7 @@ Mini-Tools is a collection of useful tools for managing various aspects of your 
 To install and use the tools in this repository, clone the repository and add it to your PATH.
 
 ```bash
-git clone https://github.com/your-username/Mini-Tools.git && cd Mini-Tools && chmod +x install_MiniTools && ./install_MiniTools
+git clone https://github.com/DIGYSKY/Mini-Tools.git && cd Mini-Tools && chmod +x install_MiniTools && ./install_MiniTools
 ```
 
 Reload your terminal or run `source ~/.bashrc` or `source ~/.zshrc` to apply the changes.
