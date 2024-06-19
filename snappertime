@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Répertoire de versionnement
-VERSION_DIR=".snapshots"  # Modifiez cette ligne pour changer le répertoire de versionnement
+VERSION_DIR=".snapshots"
 
 # Couleurs pour affichage
 BOLD="\e[1m"
@@ -96,6 +96,17 @@ list_snapshots() {
     local path=$1
     local specific_snapshot=$2
     local show_files=$3
+
+    if [ -z "$path" ]; then
+        printf "${BOLD}Dossiers disponibles dans le répertoire des snapshots :${RESET}\n"
+        for dir in "$VERSION_DIR"/*/; do
+            if [ -d "$dir" ]; then
+                printf "${YELLOW}- %s${RESET}\n" "$(basename "$dir")"
+            fi
+        done
+        return
+    fi
+
     if [ ! -f "$VERSION_DIR/$path/index" ]; then
         printf "${RED}Aucune snapshot trouvée pour %s${RESET}\n" "$path"
         exit 1
@@ -105,10 +116,12 @@ list_snapshots() {
         if [[ $line == *"$VERSION_DIR/$path"* ]]; then
             snapshot=$(echo "$line" | cut -d' ' -f1)
             note=$(echo "$line" | cut -d' ' -f3-)
-            if [ -z "$specific_snapshot" ] || [ "$specific_snapshot" == "$snapshot" ]; then
+            if [ -z "$specific_snapshot" ] || [ "$specific_snapshot" == "$snapshot" ];then
                 printf "${YELLOW}Snapshot: %s${RESET}\n" "$snapshot"
                 if [ ! -z "$note" ]; then
                     printf "  ${GREEN}Note:${RESET} %s\n" "$note"
+                else
+                    printf "  ${GREEN}Note:${RESET} Aucune note\n"
                 fi
             fi
         else
@@ -118,6 +131,7 @@ list_snapshots() {
         fi
     done < "$VERSION_DIR/$path/index"
 }
+
 
 # Fonction pour supprimer une snapshot
 delete_snapshot() {
@@ -214,10 +228,9 @@ case $command in
         add_snapshot "$path" "$snapshot" "$note"
         ;;
     list )
-        path=$1
+        path=""
         snapshot=""
         show_files="false"
-        shift
         while [ "$1" != "" ]; do
             case $1 in
                 -s | --snapshot )
@@ -228,15 +241,11 @@ case $command in
                     show_files="true"
                     ;;
                 * )
-                    break
+                    path=$1
                     ;;
             esac
             shift
         done
-        if [ -z "$path" ]; then
-            printf "${RED}Spécifiez un chemin pour lister les snapshots${RESET}\n"
-            exit 1
-        fi
         list_snapshots "$path" "$snapshot" "$show_files"
         ;;
     delete )
@@ -265,3 +274,5 @@ case $command in
         show_help
         ;;
 esac
+
+
