@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Répertoire de versionnement caché
-VERSION_DIR=".snappertime"
+# Répertoire de versionnement
+VERSION_DIR="snapshots"  # Modifiez cette ligne pour changer le répertoire de versionnement
 
 # Couleurs pour affichage
 BOLD="\e[1m"
@@ -13,19 +13,18 @@ BLUE="\e[34m"
 
 # Fonction pour afficher l'aide
 show_help() {
-    printf "${BOLD}Snapper-Time${RESET}\n"
-    printf "\n"
     printf "${BOLD}Usage:${RESET} snappertime [command] [options]\n"
     printf "\n"
     printf "${BOLD}Commands:${RESET}\n"
-    printf "  ${YELLOW}init <path>${RESET}                                  Initialiser le versionnement pour un fichier ou un dossier\n"
-    printf "  ${YELLOW}init -u|--unset <path>${RESET}                       Annuler l'initialisation du versionnement pour un fichier ou un dossier\n"
-    printf "  ${YELLOW}add <path> [-s <snapshot>] [-n <note>]${RESET}       Ajouter une nouvelle snapshot (auto-incrémentation si non spécifiée)\n"
-    printf "  ${YELLOW}list <path> [-s <snapshot>]${RESET}                  Afficher toutes les snapshots stockées ou une snapshot spécifique\n"
-    printf "  ${YELLOW}delete <path> <snapshot>${RESET}                     Supprimer une snapshot stockée\n"
-    printf "  ${YELLOW}delete <path> -a|--all${RESET}                       Supprimer toutes les snapshots stockées\n"
-    printf "  ${YELLOW}revert <path> <snapshot>${RESET}                     Revenir à une snapshot spécifique\n"
-    printf "  ${YELLOW}-h|--help${RESET}                                    Afficher l'aide\n"
+    printf "  ${YELLOW}init <path>${RESET}                              Initialiser le versionnement pour un fichier ou un dossier.\n"
+    printf "  ${YELLOW}init -u|--unset <path>${RESET}                   Annuler l'initialisation du versionnement pour un fichier ou un dossier.\n"
+    printf "  ${YELLOW}add <path> [-s <snapshot>] [-n <note>]${RESET}   Ajouter une nouvelle snapshot (auto-incrémentation si non spécifiée).\n"
+    printf "  ${YELLOW}list <path> [-s <snapshot>] [-f]${RESET}         Afficher toutes les snapshots stockées ou une snapshot spécifique,\n"
+    printf "                                           avec liste des fichiers si l'option -f est spécifiée.\n"
+    printf "  ${YELLOW}delete <path> <snapshot>${RESET}                 Supprimer une snapshot stockée.\n"
+    printf "  ${YELLOW}delete <path> -a|--all${RESET}                   Supprimer toutes les snapshots stockées.\n"
+    printf "  ${YELLOW}revert <path> <snapshot>${RESET}                 Revenir à une snapshot spécifique.\n"
+    printf "  ${YELLOW}-h|--help${RESET}                                Afficher l'aide.\n"
 }
 
 # Fonction pour initialiser le versionnement
@@ -96,6 +95,7 @@ add_snapshot() {
 list_snapshots() {
     local path=$1
     local specific_snapshot=$2
+    local show_files=$3
     if [ ! -f "$VERSION_DIR/$path/index" ]; then
         printf "${RED}Aucune snapshot trouvée pour %s${RESET}\n" "$path"
         exit 1
@@ -112,7 +112,7 @@ list_snapshots() {
                 fi
             fi
         else
-            if [ -z "$specific_snapshot" ] || [ "$specific_snapshot" == "$snapshot" ]; then
+            if [ "$show_files" == "true" ] && ([ -z "$specific_snapshot" ] || [ "$specific_snapshot" == "$snapshot" ]); then
                 printf "${BLUE}%s${RESET}\n" "$line"
             fi
         fi
@@ -216,17 +216,28 @@ case $command in
     list )
         path=$1
         snapshot=""
+        show_files="false"
         shift
-        if [ "$1" == "-s" ] || [ "$1" == "--snapshot" ]; then
+        while [ "$1" != "" ]; do
+            case $1 in
+                -s | --snapshot )
+                    shift
+                    snapshot=$1
+                    ;;
+                -f )
+                    show_files="true"
+                    ;;
+                * )
+                    break
+                    ;;
+            esac
             shift
-            snapshot=$1
-            shift
-        fi
+        done
         if [ -z "$path" ]; then
             printf "${RED}Spécifiez un chemin pour lister les snapshots${RESET}\n"
             exit 1
         fi
-        list_snapshots "$path" "$snapshot"
+        list_snapshots "$path" "$snapshot" "$show_files"
         ;;
     delete )
         path=$1
