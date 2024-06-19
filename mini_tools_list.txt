@@ -3,4 +3,4 @@ Install_MiniTools "install_minitools" (2.0.3) [Install_MiniTools is a tool for i
 Ports-Manager "portsmanager" (1.0.4) [Ports-Manager is a port management tool that allows you to list and manage processes listening on specific ports or on all open ports.]
 Env-Manager "envmanager" (1.0.1) [Env-Manager is a tool for managing environment variables, allowing you to show, add, delete, list, and find environment variables.]
 Git-Manager "gitmanager" (1.0.0) [Git-Manager is a tool for managing git repositories, showing repositories in user directory, and searching repositories.]
-Snapper-Time "snappertime" (1.0.3) [Snapper-Time is a tool for managing snapshots of directories (is in beta) and or files (is in final), showing snapshots, and restoring snapshots.]
+Snapper-Time "snappertime" (1.0.4) [Snapper-Time is a tool for managing snapshots of directories (is in beta) and or files (is in final), showing snapshots, and restoring snapshots.]
