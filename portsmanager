@@ -11,6 +11,7 @@ show_help_fr() {
     printf "  \e[32mportsmanager <port> [<port> ...] [--kill|-k] [-y]\e[0m\n"
     printf "  \e[32mportsmanager [--all|-a]\e[0m\n"
     printf "  \e[32mportsmanager [-all|-a] [--kill|-k] [-y]\e[0m\n"
+    printf "  \e[32mportsmanager [--listen|-l] <port>\e[0m\n"
     printf "  \e[32mportsmanager [--kill-all|-ka]\e[0m\n"
     printf "  \e[32mportsmanager [--help|-h]\e[0m\n"
     printf "\n"
@@ -20,12 +21,13 @@ show_help_fr() {
     printf "  \e[34mspecifiques ou sur tous les ports ouverts.\e[0m\n"
     printf "\n"
     printf "\e[1mOptions:\e[0m\n"
-    printf "  \e[33m<port>\e[0m          Spécifiez un ou plusieurs ports pour lesquels vous souhaitez lister les processus.\n"
-    printf "  \e[33m--kill, -k\e[0m      Optionnel. Tuer les processus écoutant sur les ports spécifiés après confirmation.\n"
-    printf "  \e[33m-y\e[0m              Optionnel. Utilisé avec --kill pour tuer les processus sans confirmation.\n"
-    printf "  \e[33m--all, -a\e[0m       Lister tous les ports ouverts.\n"
-    printf "  \e[33m--kill-all, -ka\e[0m Tuer tous les processus écoutant sur tous les ports sans confirmation.\n"
-    printf "  \e[33m--help\e[0m          Afficher ce message d'aide et quitter.\n"
+    printf "  \e[33m<port>\e[0m             Spécifiez un ou plusieurs ports pour lesquels vous souhaitez lister les processus.\n"
+    printf "  \e[33m--kill, -k\e[0m         Optionnel. Tuer les processus écoutant sur les ports spécifiés après confirmation.\n"
+    printf "  \e[33m-y\e[0m                 Optionnel. Utilisé avec --kill pour tuer les processus sans confirmation.\n"
+    printf "  \e[33m--all, -a\e[0m          Lister tous les ports ouverts.\n"
+    printf "  \e[33m--listen, -l\e[0m       Écouter le trafique sur un port spécifique.\n"
+    printf "  \e[33m--kill-all, -ka\e[0m    Tuer tous les processus écoutant sur tous les ports sans confirmation.\n"
+    printf "  \e[33m--help\e[0m             Afficher ce message d'aide et quitter.\n"
     printf "\n"
     printf "\e[1mExemples:\e[0m\n"
     printf "  \e[32mportsmanager 80 443\e[0m               Lister les processus écoutant sur les ports 80 et 443\n"
@@ -44,6 +46,7 @@ show_help_en() {
     printf "  \e[32mportsmanager <port> [<port> ...]\e[0m\n"
     printf "  \e[32mportsmanager <port> [<port> ...] [--kill|-k] [-y]\e[0m\n"
     printf "  \e[32mportsmanager [--all|-a]\e[0m\n"
+    printf "  \e[32mportsmanager [--listen|-l] <port>\e[0m\n"
     printf "  \e[32mportsmanager [--kill-all|-ka]\e[0m\n"
     printf "  \e[32mportsmanager [--help|-h]\e[0m\n"
     printf "\n"
@@ -51,12 +54,13 @@ show_help_en() {
     printf "  \e[34mportsmanager is a port management tool that allows you to list and manage processes listening on specific ports or all open ports.\e[0m\n"
     printf "\n"
     printf "\e[1mOptions:\e[0m\n"
-    printf "  \e[33m<port>\e[0m          Specify one or more ports for which you want to list the processes.\n"
-    printf "  \e[33m--kill, -k\e[0m      Optional. Kill the processes listening on the specified ports after confirmation.\n"
-    printf "  \e[33m-y\e[0m              Optional. Used with --kill to kill processes without confirmation.\n"
-    printf "  \e[33m--all, -a\e[0m       List all open ports.\n"
-    printf "  \e[33m--kill-all, -ka\e[0m Kill all processes listening on all ports without confirmation.\n"
-    printf "  \e[33m--help\e[0m          Display this help message and exit.\n"
+    printf "  \e[33m<port>\e[0m             Specify one or more ports for which you want to list the processes.\n"
+    printf "  \e[33m--kill, -k\e[0m         Optional. Kill the processes listening on the specified ports after confirmation.\n"
+    printf "  \e[33m-y\e[0m                 Optional. Used with --kill to kill processes without confirmation.\n"
+    printf "  \e[33m--all, -a\e[0m          List all open ports.\n"
+    printf "  \e[33m--listen, -l\e[0m       Listen to the traffic on a specific port.\n"
+    printf "  \e[33m--kill-all, -ka\e[0m    Kill all processes listening on all ports without confirmation.\n"
+    printf "  \e[33m--help\e[0m             Display this help message and exit.\n"
     printf "\n"
     printf "\e[1mExamples:\e[0m\n"
     printf "  \e[32mportsmanager 80 443\e[0m               List processes listening on ports 80 and 443\n"
@@ -95,6 +99,15 @@ KILL_OPTION=false
 KILL_ALL=false
 CONFIRMATION=true
 
+listen_port() {
+    if [ -z "$1" ]; then
+        printf "${RED}Erreur: le port n'est pas spécifié.${RESET}\n"
+        exit 1
+    fi
+    local port=$1
+    sudo ngrep -d any port $port
+}
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -116,6 +129,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --help|-h)
             show_help
+            exit 0
+            ;;
+        --listen|-l)
+            listen_port $2
             exit 0
             ;;
         *)
