@@ -145,29 +145,40 @@ process_port() {
         return
     fi
 
-    # Display header
-    echo -e "\nPort: $port"
-    echo -e "PID\tUser\tApplication\tProtocol\tName"
+    # Afficher l'en-tête
+    printf "\n+-----------+\n"
+    printf "\e[32m| Port: $port |\e[0m\n"
+    printf "+-----------+\n"
+    printf "+--------+--------+--------------+----------+--------+\n"
+    printf "| \e[33mPID\e[0m    | \e[33mUser\e[0m   | \e[34mApplication\e[0m  | \e[31mProtocol\e[0m | \e[32mName\e[0m   |\n"
+    printf "+--------+--------+--------------+----------+--------+\n"
 
-    # Read lsof output line by line
+    # Lire la sortie de lsof ligne par ligne
     echo "$lsof_output" | while IFS= read -r line; do
-        # Extract necessary information
+        # Extraire les informations nécessaires
         pid=$(echo "$line" | awk '{print $2}')
         user=$(echo "$line" | awk '{print $3}')
         address=$(echo "$line" | awk '{print $9}')
         protocol=$(echo "$line" | awk '{print $8}')
         name=$(echo "$line" | awk '{print $1}')
         
-        # Get the application name from the PID
+        # Obtenir le nom de l'application à partir du PID
         app_name=$(ps -p "$pid" -o comm= 2>/dev/null)
 
-        # Check if the application name was found
+        # Vérifier si le nom de l'application a été trouvé
         if [[ -z "$app_name" ]]; then
             app_name="N/A"
         fi
         
-        # Display all information
-        echo -e "$pid\t$user\t$app_name\t$protocol\t$name"
+        # Calculer la largeur des colonnes
+        pid_width=${#pid}
+        user_width=${#user}
+        app_name_width=${#app_name}
+        protocol_width=${#protocol}
+        name_width=${#name}
+
+        # Afficher toutes les informations sous forme de tableau
+        printf "| \e[33m%-${pid_width}s\e[0m | %-${user_width}s | \e[34m%-${app_name_width}s\e[0m | \e[31m%-${protocol_width}s\e[0m | \e[32m%-${name_width}s\e[0m |\n" "$pid" "$user" "$app_name" "$protocol" "$name"
     done
 
     # Confirmation to kill processes
