@@ -20,6 +20,15 @@ show_help() {
     printf "  \e[33m-up, --update -f|--force\e[0m Force update Mini-Tools from the repository\n"
     printf "  \e[33m-i, --install\e[0m        Install Mini-Tools\n"
     printf "  \e[33m-h, --help\e[0m           Display this help\n"
+    printf "\n"
+    printf "For manual installation and update of Mini-Tools, follow the steps below:\n"
+    printf "1. Execute the following git commands:\n"
+    printf "   \e[32mgit\e[0m \e[34mreset\e[0m \e[33m--hard\e[0m origin/main\n"
+    printf "   \e[32mgit\e[0m \e[34mpull\e[0m\n"
+    printf "2. Run the installation script with appropriate permissions.\n"
+    printf "3. Execute the following command:\n"
+    printf "   \e[34m./install_MiniTools\e[0m\n"
+    printf "4. Follow the on-screen instructions to complete the installation.\n"
 }
 
 # Function to list available tools

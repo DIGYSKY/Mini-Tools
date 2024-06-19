@@ -18,7 +18,7 @@ add_to_path() {
 }
 
 # Demander à l'utilisateur quel shell il utilise
-read -p "Voulez-vous ajouter Mini-Tools au PATH pour bash, zsh, ou les deux ? (bash/zsh/both/n default: no) " shell_choice
+read -p "Voulez-vous ajouter Mini-Tools au PATH pour bash, zsh, ou les deux ? (bash/zsh/both default: no) " shell_choice
 case $shell_choice in
     bash)
         add_to_path ".bashrc"
