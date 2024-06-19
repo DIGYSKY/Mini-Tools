@@ -1,0 +1,256 @@
+#!/bin/bash
+
+# Répertoire de versionnement caché
+VERSION_DIR=".snappertime"
+
+# Couleurs pour affichage
+BOLD="\e[1m"
+RESET="\e[0m"
+RED="\e[31m"
+GREEN="\e[32m"
+YELLOW="\e[33m"
+BLUE="\e[34m"
+
+# Fonction pour afficher l'aide
+show_help() {
+    printf "${BOLD}Snapper-Time${RESET}\n"
+    printf "\n"
+    printf "${BOLD}Usage:${RESET} snappertime [command] [options]\n"
+    printf "\n"
+    printf "${BOLD}Commands:${RESET}\n"
+    printf "  ${YELLOW}init <path>${RESET}                                  Initialiser le versionnement pour un fichier ou un dossier\n"
+    printf "  ${YELLOW}init -u|--unset <path>${RESET}                       Annuler l'initialisation du versionnement pour un fichier ou un dossier\n"
+    printf "  ${YELLOW}add <path> [-s <snapshot>] [-n <note>]${RESET}       Ajouter une nouvelle snapshot (auto-incrémentation si non spécifiée)\n"
+    printf "  ${YELLOW}list <path> [-s <snapshot>]${RESET}                  Afficher toutes les snapshots stockées ou une snapshot spécifique\n"
+    printf "  ${YELLOW}delete <path> <snapshot>${RESET}                     Supprimer une snapshot stockée\n"
+    printf "  ${YELLOW}delete <path> -a|--all${RESET}                       Supprimer toutes les snapshots stockées\n"
+    printf "  ${YELLOW}revert <path> <snapshot>${RESET}                     Revenir à une snapshot spécifique\n"
+    printf "  ${YELLOW}-h|--help${RESET}                                    Afficher l'aide\n"
+}
+
+# Fonction pour initialiser le versionnement
+init_versioning() {
+    local path=$1
+    if [ ! -d "$VERSION_DIR/$path" ]; then
+        mkdir -p "$VERSION_DIR/$path"
+        touch "$VERSION_DIR/$path/index"
+        printf "${GREEN}Versionnement initialisé pour %s${RESET}\n" "$path"
+    else
+        printf "${RED}Le versionnement est déjà initialisé pour %s${RESET}\n" "$path"
+    fi
+}
+
+# Fonction pour annuler l'initialisation du versionnement
+unset_versioning() {
+    local path=$1
+    if [ -d "$VERSION_DIR/$path" ]; then
+        rm -rf "$VERSION_DIR/$path"
+        printf "${GREEN}Initialisation du versionnement annulée pour %s${RESET}\n" "$path"
+    else
+        printf "${RED}Aucun versionnement trouvé pour %s${RESET}\n" "$path"
+    fi
+}
+
+# Fonction pour incrémenter la snapshot
+increment_snapshot() {
+    local last_snapshot=$1
+    local new_snapshot=$((last_snapshot + 1))
+    echo "$new_snapshot"
+}
+
+# Fonction pour obtenir la dernière snapshot
+get_last_snapshot() {
+    local path=$1
+    if [ -f "$VERSION_DIR/$path/index" ]; then
+        awk '/^[0-9]+ / {print $1}' "$VERSION_DIR/$path/index" | tail -n 1
+    else
+        echo "0"
+    fi
+}
+
+# Fonction pour ajouter une nouvelle snapshot
+add_snapshot() {
+    local path=$1
+    local snapshot=$2
+    local note=$3
+    if [ -z "$snapshot" ]; then
+        last_snapshot=$(get_last_snapshot "$path")
+        snapshot=$(increment_snapshot "$last_snapshot")
+    fi
+    local snapshot_path="$VERSION_DIR/$path/$snapshot.tar.gz"
+    if [ -f "$snapshot_path" ]; then
+        printf "${RED}La snapshot %s existe déjà pour %s${RESET}\n" "$snapshot" "$path"
+        exit 1
+    fi
+    tar -czf "$snapshot_path" "$path"
+    local file_list=$(tar -tzf "$snapshot_path" | sed 's/^/  - /')
+    echo "$snapshot $snapshot_path $note" >> "$VERSION_DIR/$path/index"
+    echo "$file_list" >> "$VERSION_DIR/$path/index"
+    printf "${GREEN}Snapshot %s ajoutée pour %s${RESET}\n" "$snapshot" "$path"
+    if [ ! -z "$note" ]; then
+        printf "${GREEN}Note:${RESET} %s\n" "$note"
+    fi
+}
+
+# Fonction pour afficher les snapshots stockées
+list_snapshots() {
+    local path=$1
+    local specific_snapshot=$2
+    if [ ! -f "$VERSION_DIR/$path/index" ]; then
+        printf "${RED}Aucune snapshot trouvée pour %s${RESET}\n" "$path"
+        exit 1
+    fi
+    printf "${BOLD}Snapshots disponibles pour %s:${RESET}\n" "$path"
+    while IFS= read -r line; do
+        if [[ $line == *"$VERSION_DIR/$path"* ]]; then
+            snapshot=$(echo "$line" | cut -d' ' -f1)
+            note=$(echo "$line" | cut -d' ' -f3-)
+            if [ -z "$specific_snapshot" ] || [ "$specific_snapshot" == "$snapshot" ]; then
+                printf "${YELLOW}Snapshot: %s${RESET}\n" "$snapshot"
+                if [ ! -z "$note" ]; then
+                    printf "  ${GREEN}Note:${RESET} %s\n" "$note"
+                fi
+            fi
+        else
+            if [ -z "$specific_snapshot" ] || [ "$specific_snapshot" == "$snapshot" ]; then
+                printf "${BLUE}%s${RESET}\n" "$line"
+            fi
+        fi
+    done < "$VERSION_DIR/$path/index"
+}
+
+# Fonction pour supprimer une snapshot
+delete_snapshot() {
+    local path=$1
+    local snapshot=$2
+    local snapshot_path="$VERSION_DIR/$path/$snapshot.tar.gz"
+    if [ ! -f "$snapshot_path" ]; then
+        printf "${RED}La snapshot %s n'existe pas pour %s${RESET}\n" "$snapshot" "$path"
+        exit 1
+    fi
+    rm -f "$snapshot_path"
+    grep -v "^$snapshot " "$VERSION_DIR/$path/index" | grep -v "^  - " > "$VERSION_DIR/$path/index.tmp" && mv "$VERSION_DIR/$path/index.tmp" "$VERSION_DIR/$path/index"
+    printf "${GREEN}Snapshot %s supprimée pour %s${RESET}\n" "$snapshot" "$path"
+}
+
+# Fonction pour supprimer toutes les snapshots
+delete_all_snapshots() {
+    local path=$1
+    if [ -d "$VERSION_DIR/$path" ]; then
+        rm -rf "$VERSION_DIR/$path"
+        printf "${GREEN}Toutes les snapshots supprimées pour %s${RESET}\n" "$path"
+    else
+        printf "${RED}Aucune snapshot trouvée pour %s${RESET}\n" "$path"
+    fi
+}
+
+# Fonction pour revenir à une snapshot spécifique
+revert_snapshot() {
+    local path=$1
+    local snapshot=$2
+    local snapshot_path="$VERSION_DIR/$path/$snapshot.tar.gz"
+    if [ ! -f "$snapshot_path" ]; then
+        printf "${RED}La snapshot %s n'existe pas pour %s${RESET}\n" "$snapshot" "$path"
+        exit 1
+    fi
+    tar -xzf "$snapshot_path" -C .
+    printf "${GREEN}Revenu à la snapshot %s pour %s${RESET}\n" "$snapshot" "$path"
+}
+
+# Parse les options
+if [ $# -eq 0 ]; then
+    show_help
+    exit 0
+fi
+
+command=$1
+shift
+
+case $command in
+    -h | --help )
+        show_help
+        ;;
+    init )
+        if [ "$1" == "-u" ] || [ "$1" == "--unset" ]; then
+            shift
+            if [ -z "$1" ]; then
+                printf "${RED}Spécifiez un chemin pour annuler l'initialisation du versionnement${RESET}\n"
+                exit 1
+            fi
+            unset_versioning "$1"
+        else
+            if [ -z "$1" ]; then
+                printf "${RED}Spécifiez un chemin pour initialiser le versionnement${RESET}\n"
+                exit 1
+            fi
+            init_versioning "$1"
+        fi
+        ;;
+    add )
+        path=$1
+        snapshot=""
+        note=""
+        shift
+        while [ "$1" != "" ]; do
+            case $1 in
+                -s )
+                    shift
+                    snapshot=$1
+                    ;;
+                -n )
+                    shift
+                    note=$1
+                    ;;
+                * )
+                    break
+                    ;;
+            esac
+            shift
+        done
+        if [ -z "$path" ]; then
+            printf "${RED}Spécifiez un chemin pour ajouter une snapshot${RESET}\n"
+            exit 1
+        fi
+        add_snapshot "$path" "$snapshot" "$note"
+        ;;
+    list )
+        path=$1
+        snapshot=""
+        shift
+        if [ "$1" == "-s" ] || [ "$1" == "--snapshot" ]; then
+            shift
+            snapshot=$1
+            shift
+        fi
+        if [ -z "$path" ]; then
+            printf "${RED}Spécifiez un chemin pour lister les snapshots${RESET}\n"
+            exit 1
+        fi
+        list_snapshots "$path" "$snapshot"
+        ;;
+    delete )
+        path=$1
+        snapshot=""
+        shift
+        if [ "$1" == "-a" ] || [ "$1" == "--all" ]; then
+            delete_all_snapshots "$path"
+        else
+            if [ -z "$path" ] || [ -z "$1" ]; then
+                printf "${RED}Spécifiez un chemin et une snapshot pour supprimer, ou utilisez -a|--all pour supprimer toutes les snapshots${RESET}\n"
+                exit 1
+            fi
+            snapshot=$1
+            delete_snapshot "$path" "$snapshot"
+        fi
+        ;;
+    revert )
+        if [ -z "$1" ] || [ -z "$2" ]; then
+            printf "${RED}Spécifiez un chemin et une snapshot pour revenir${RESET}\n"
+            exit 1
+        fi
+        revert_snapshot "$1" "$2"
+        ;;
+    * )
+        show_help
+        ;;
+esac
