@@ -3,3 +3,4 @@ ps
 grep
 env
 find
+printf

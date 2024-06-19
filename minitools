@@ -11,14 +11,14 @@ show_version() {
 
 # Function to display help
 show_help() {
-    echo "Usage: minitools [options]"
-    echo
-    echo "Options:"
-    echo "  -v, --version        Display the version of Mini-Tools"
-    echo "  -l, --list-tools     List available tools and unavailable tools"
-    echo "  -up, --update        Update Mini-Tools from the repository"
-    echo "  -i, --install        Install Mini-Tools"
-    echo "  -h, --help           Display this help"
+    printf "\e[1mUsage:\e[0m minitools [options]\n"
+    printf "\n"
+    printf "\e[1mOptions:\e[0m\n"
+    printf "  \e[33m-v, --version\e[0m        Display the version of Mini-Tools\n"
+    printf "  \e[33m-l, --list-tools\e[0m     List available tools and unavailable tools\n"
+    printf "  \e[33m-up, --update\e[0m        Update Mini-Tools from the repository\n"
+    printf "  \e[33m-i, --install\e[0m        Install Mini-Tools\n"
+    printf "  \e[33m-h, --help\e[0m           Display this help\n"
 }
 
 # Function to list available tools
@@ -26,8 +26,8 @@ list_tools() {
     local script_dir
     script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
     if [[ -f "$script_dir/mini_tools_list.txt" ]]; then
-        printf "%-30s %-20s %-10s %-50s\n" "Tool" "Command" "Version" "Description"
-        printf "%-30s %-20s %-10s %-50s\n" "----" "--------" "-------" "-----------"
+        printf "%-22s %-20s %-10s %-50s\n" "Tool" "Command" "Version" "Description"
+        printf "%-22s %-20s %-10s %-50s\n" "----" "--------" "-------" "-----------"
         while IFS= read -r tool; do
             name=$(echo "$tool" | awk -F' ' '{print $1}')
             file=$(echo "$tool" | awk -F'"' '{print $2}')
@@ -37,13 +37,13 @@ list_tools() {
             while IFS= read -r line; do
                 if $first_line; then
                     if [[ -f "$script_dir/$file" ]]; then
-                        printf "\e[32m%-30s\e[0m %-20s %-10s %-50s\n" "$name" "$file" "$version" "$line"
+                        printf "\e[32m%-22s\e[0m %-20s %-10s %-50s\n" "$name" "$file" "$version" "$line"
                     else
-                        printf "\e[31m%-30s\e[0m %-20s %-10s %-50s\n" "$name" "$file" "$version" "$line"
+                        printf "\e[31m%-22s\e[0m %-20s %-10s %-50s\n" "$name" "$file" "$version" "$line"
                     fi
                     first_line=false
                 else
-                    printf "%-30s %-20s %-10s %-50s\n" "" "" "" "$line"
+                    printf "%-22s %-20s %-10s %-50s\n" "" "" "" "$line"
                 fi
             done <<< "$description"
             printf "\n"
