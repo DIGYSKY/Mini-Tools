@@ -135,6 +135,7 @@ update_tools() {
             cd "$script_dir" || { printf "\e[31mImpossible de changer de répertoire vers %s\e[0m\n" "$script_dir"; exit 1; }
             
             git reset --hard origin/main
+            git pull
             if [[ $? -eq 0 ]]; then
                 printf "\e[32mMise à jour réussie.\e[0m\n"
                 install_tools
