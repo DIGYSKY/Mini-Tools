@@ -17,6 +17,7 @@ show_help() {
     printf "  \e[33m-v, --version\e[0m        Display the version of Mini-Tools\n"
     printf "  \e[33m-l, --list-tools\e[0m     List available tools and unavailable tools\n"
     printf "  \e[33m-up, --update\e[0m        Update Mini-Tools from the repository\n"
+    printf "  \e[33m-up, --update -f|--force\e[0m Force update Mini-Tools from the repository\n"
     printf "  \e[33m-i, --install\e[0m        Install Mini-Tools\n"
     printf "  \e[33m-h, --help\e[0m           Display this help\n"
 }
@@ -64,8 +65,13 @@ version_greater() {
     fi
 }
 
-# Function to update Mini-Tools from the repository
+# Function to update Mini-Tools from the repository with force option
 update_tools() {
+    local force_update=false
+    if [[ "$2" == "-f" || "$2" == "--force" ]]; then
+        force_update=true
+    fi
+
     local repo_url="https://github.com/DIGYSKY/Mini-Tools.git"
     local script_dir
     script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -120,9 +126,11 @@ update_tools() {
         fi
     done
     
-    if $updates_available; then
-        read -p "Des mises à jour sont disponibles. Voulez-vous mettre à jour Mini-Tools ? (Y/n) " confirm
-        if [[ "$confirm" == "Y" || "$confirm" == "y" || "$confirm" == "" ]]; then
+    if $updates_available || $force_update; then
+        if ! $force_update; then
+            read -p "Des mises à jour sont disponibles. Voulez-vous mettre à jour Mini-Tools ? (Y/n) " confirm
+        fi
+        if $force_update || [[ "$confirm" == "Y" || "$confirm" == "y" || "$confirm" == "" ]]; then
             printf "\e[32mMise à jour de Mini-Tools depuis %s dans le répertoire %s\e[0m\n" "$repo_url" "$script_dir"
             cd "$script_dir" || { printf "\e[31mImpossible de changer de répertoire vers %s\e[0m\n" "$script_dir"; exit 1; }
             
@@ -154,7 +162,7 @@ case "$1" in
         list_tools
         ;;
     -up|--update)
-        update_tools
+        update_tools "$@"
         ;;
     -h|--help)
         show_version
