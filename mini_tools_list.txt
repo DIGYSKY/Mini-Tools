@@ -2,5 +2,5 @@ Mini-Tools "minitools" (1.5.7) [Mini-Tools is a shell script manager for version
 Install_MiniTools "install_minitools" (2.0.3) [Install_MiniTools is a tool for installing Mini-Tools and requirements and updating Mini-Tools.]
 Ports-Manager "portsmanager" (1.1.1) [Ports-Manager is a port management tool that allows you to list and manage processes listening on specific ports or on all open ports.]
 Env-Manager "envmanager" (1.0.1) [Env-Manager is a tool for managing environment variables, allowing you to show, add, delete, list, and find environment variables.]
-Git-Manager "gitmanager" (2.0.0) [Git-Manager is a tool for managing ssh keys and git repositories.]
+Git-Manager "gitmanager" (2.0.2) [Git-Manager is a tool for managing ssh keys and git repositories.]
 Snapper-Time "snappertime" (1.0.5) [Snapper-Time is a tool for managing snapshots of directories (is in beta) and or files (is in final), showing snapshots, and restoring snapshots.]

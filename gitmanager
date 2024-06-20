@@ -8,7 +8,8 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Répertoire de stockage des clés SSH
-KEYS_DIR="$(pwd)/ssh_keys"
+SCRIPT_DIR="$(dirname "$0")"
+KEYS_DIR="$SCRIPT_DIR/ssh_keys"
 INDEX_FILE="$KEYS_DIR/index"
 
 # Créer le répertoire de stockage s'il n'existe pas
