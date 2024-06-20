@@ -1,111 +1,444 @@
 #!/bin/bash
 
+# Couleurs pour les messages
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Répertoire de stockage des clés SSH
+KEYS_DIR="$(pwd)/ssh_keys"
+INDEX_FILE="$KEYS_DIR/index"
+
+# Créer le répertoire de stockage s'il n'existe pas
+mkdir -p "$KEYS_DIR"
+
 # Fonction pour afficher l'aide
 show_help() {
-    echo "Usage: gitmanager [options]"
-    echo
-    echo "Options:"
-    echo "  -s, --show               Show all Git repositories in the user directory"
-    echo "  -f, --find <keyword>     Find Git repositories containing the keyword"
-    echo "  -h, --help               Display this help and exit"
+  printf "${YELLOW}Usage:${NC} gitmanager [options]\n"
+  printf "\n${YELLOW}Options:${NC}\n"
+  printf "  ${BLUE}--show${NC}                     Show all Git repositories in the user directory\n"
+  printf "  ${BLUE}--find <keyword>${NC}           Find Git repositories containing the keyword\n"
+  printf "  ${BLUE}--find-ssh [options]${NC}       Find SSH keys\n"
+  printf "    ${BLUE}--github${NC}                 List SSH keys for GitHub\n"
+  printf "    ${BLUE}--gitlab${NC}                 List SSH keys for GitLab\n"
+  printf "    ${BLUE}<username>${NC}               List SSH keys for the specified username\n"
+  printf "  ${BLUE}--connect${NC}                  Establish a new SSH connection\n"
+  printf "    ${BLUE}--github <username>${NC}      Connect to GitHub\n"
+  printf "    ${BLUE}--gitlab <username>${NC}      Connect to GitLab\n"
+  printf "  ${BLUE}--set-github <username>${NC}    Set GitHub connection as default\n"
+  printf "  ${BLUE}--set-gitlab <username>${NC}    Set GitLab connection as default\n"
+  printf "  ${BLUE}--default${NC}                  Show the default connection\n"
+  printf "  ${BLUE}--logout [options]${NC}         Remove a connection\n"
+  printf "    ${BLUE}--github${NC}                 Remove GitHub connection\n"
+  printf "    ${BLUE}--gitlab${NC}                 Remove GitLab connection\n"
+  printf "  ${BLUE}-h, --help${NC}                 Display this help and exit\n"
+  printf "\n${YELLOW}Examples:${NC}\n"
+  printf "  ${GREEN}Establish a new SSH connection for GitHub:${NC}\n"
+  printf "    gitmanager --connect --github myusername\n"
+  printf "  ${GREEN}Set GitHub connection as default:${NC}\n"
+  printf "    gitmanager --set-github myusername\n"
+  printf "  ${GREEN}Set GitLab connection as default:${NC}\n"
+  printf "    gitmanager --set-gitlab myusername\n"
+  printf "  ${GREEN}Remove GitHub connection:${NC}\n"
+  printf "    gitmanager --logout --github myusername\n"
+  printf "  ${GREEN}Remove GitLab connection:${NC}\n"
+  printf "    gitmanager --logout --gitlab myusername\n"
+}
+
+# Fonction pour établir une nouvelle connexion SSH
+connect_ssh() {
+  local service="$1"
+  local username="$2"
+  read -p "Entrez votre adresse email pour $service : " email
+  local key_path="$KEYS_DIR/id_ed25519_${service}_${username}"
+
+  # Générer une nouvelle clé SSH si elle n'existe pas
+  if [ ! -f "${key_path}" ]; then
+    ssh-keygen -t ed25519 -C "$email" -f "${key_path}"
+  else
+    printf "${YELLOW}La clé SSH existe déjà pour ce compte.${NC}\n"
+  fi
+
+  # Démarrer l'agent SSH et ajouter la clé SSH
+  eval "$(ssh-agent -s)"
+  ssh-add "${key_path}"
+
+  # Afficher la clé publique
+  local pub_key
+  pub_key=$(cat "${key_path}.pub")
+  printf "Votre clé publique SSH est :\n%s\n" "$pub_key"
+
+  printf "Veuillez copier la clé ci-dessus et l'ajouter à votre compte %s.\n" "$service"
+  printf "Pour ce faire :\n"
+  printf "1. Connectez-vous à votre compte %s.\n" "$service"
+  printf "2. Allez dans 'Settings' -> 'SSH Keys'.\n"
+  printf "3. Collez la clé dans le champ 'Key' et ajoutez un titre.\n"
+  printf "4. Cliquez sur 'Add key'.\n"
+
+  read -p "Appuyez sur [Entrée] après avoir ajouté la clé pour tester la connexion..."
+
+  # Tester la connexion SSH
+  if [ "$service" == "GitHub" ]; then
+    ssh_output=$(ssh -T git@github.com 2>&1)
+  elif [ "$service" == "GitLab" ]; then
+    ssh_output=$(ssh -T git@gitlab.com 2>&1)
+  fi
+
+  if echo "$ssh_output" | grep -q "successfully authenticated"; then
+    printf "${GREEN}Connexion SSH à %s réussie !${NC}\n" "$service"
+    # Ajouter les informations de la clé à l'index
+    printf "%s:%s:%s\n" "$username" "$service" "$key_path" >> "$INDEX_FILE"
+  else
+    printf "${RED}Connexion SSH à %s échouée : ${NC}%s\n" "$service" "$ssh_output"
+  fi
+}
+
+# Fonction pour vérifier l'état de la connexion SSH
+check_ssh_connection() {
+  local key_path="$1"
+  local host="$2"
+
+  # if ssh -o BatchMode=yes -o ConnectTimeout=5 -i "$key_path" git@"$host" exit &> /dev/null; then
+  printf "${GREEN}%s${NC}" "$key_path"
+  # else
+  #   printf "${RED}%s${NC}" "$key_path"
+  # fi
+}
+
+# Fonction pour lister les clés SSH pour un compte
+list_keys() {
+  local filter="$1"
+  local username="$2"
+
+  if [ -f "$INDEX_FILE" ]; then
+    if [ "$filter" == "all" ]; then
+      printf "Liste de toutes les clés SSH :\n"
+      while IFS=: read -r user srv key_path; do
+        host=""
+        if [ "$srv" == "GitHub" ]; then
+          host="github.com"
+        elif [ "$srv" == "GitLab" ]; then
+          host="gitlab.com"
+        fi
+        printf "%s : %s\n" "$user" "$(check_ssh_connection "$key_path" "$host")"
+      done < "$INDEX_FILE"
+    elif [ "$filter" == "github" ]; then
+      printf "Liste des clés SSH pour GitHub :\n"
+      grep "GitHub" "$INDEX_FILE" | while IFS=: read -r user srv key_path; do
+        printf "%s : %s\n" "$user" "$(check_ssh_connection "$key_path" "github.com")"
+      done
+    elif [ "$filter" == "gitlab" ]; then
+      printf "Liste des clés SSH pour GitLab :\n"
+      grep "GitLab" "$INDEX_FILE" | while IFS=: read -r user srv key_path; do
+        printf "%s : %s\n" "$user" "$(check_ssh_connection "$key_path" "gitlab.com")"
+      done
+    elif [ -n "$username" ]; then
+      printf "Liste des clés SSH pour l'utilisateur %s :\n" "$username"
+      grep "$username" "$INDEX_FILE" | while IFS=: read -r user srv key_path; do
+        host=""
+        if [ "$srv" == "GitHub" ]; then
+          host="github.com"
+        elif [ "$srv" == "GitLab" ]; then
+          host="gitlab.com"
+        fi
+        printf "%s : %s\n" "$user" "$(check_ssh_connection "$key_path" "$host")"
+      done
+    else
+      printf "${RED}Option non valide pour la liste des clés SSH.${NC}\n"
+      show_help
+    fi
+  else
+    printf "${RED}Aucune clé trouvée.${NC}\n"
+  fi
+}
+
+# Fonction pour afficher la connexion par défaut
+show_default() {
+  if [ -f "$INDEX_FILE" ]; then
+    printf "Connexion par défaut :\n"
+    grep ":default" "$INDEX_FILE"
+  else
+    printf "${RED}Aucune clé trouvée.${NC}\n"
+  fi
+}
+
+# Fonction pour définir une connexion GitHub par défaut
+set_github() {
+  local username="$1"
+  local key_path
+
+  key_path=$(grep "$username:GitHub" "$INDEX_FILE" | cut -d: -f3)
+  if [ -z "$key_path" ]; then
+    printf "${RED}Aucune clé trouvée pour GitHub et l'utilisateur %s.${NC}\n" "$username"
+    return 1
+  fi
+
+  # Supprimer l'ancienne valeur par défaut
+  sed -i '' "s/:default//g" "$INDEX_FILE"
+
+  # Ajouter le nouveau par défaut
+  sed -i '' "s|$username:GitHub:$key_path|$username:GitHub:$key_path:default|" "$INDEX_FILE"
+
+  # Remplacer complètement le contenu du fichier ~/.ssh/config
+  {
+    echo "Host github.com"
+    echo "  HostName github.com"
+    echo "  User git"
+    echo "  IdentityFile $key_path"
+    echo "  AddKeysToAgent yes"
+    echo "  UseKeychain yes"
+  } > ~/.ssh/config
+
+  printf "${GREEN}Connexion par défaut définie pour GitHub et l'utilisateur %s.${NC}\n" "$username"
+}
+
+# Fonction pour définir une connexion GitLab par défaut
+set_gitlab() {
+  local username="$1"
+  local key_path
+
+  key_path=$(grep "$username:GitLab" "$INDEX_FILE" | cut -d: -f3)
+  if [ -z "$key_path" ]; then
+    printf "${RED}Aucune clé trouvée pour GitLab et l'utilisateur %s.${NC}\n" "$username"
+    return 1
+  fi
+
+  # Supprimer l'ancienne valeur par défaut
+  sed -i '' "s/:default//g" "$INDEX_FILE"
+
+  # Ajouter le nouveau par défaut
+  sed -i '' "s|$username:GitLab:$key_path|$username:GitLab:$key_path:default|" "$INDEX_FILE"
+
+  # Remplacer complètement le contenu du fichier ~/.ssh/config
+  {
+    echo "Host gitlab.com"
+    echo "  HostName gitlab.com"
+    echo "  User git"
+    echo "  IdentityFile $key_path"
+    echo "  AddKeysToAgent yes"
+    echo "  UseKeychain yes"
+  } > ~/.ssh/config
+
+  printf "${GREEN}Connexion par défaut définie pour GitLab et l'utilisateur %s.${NC}\n" "$username"
+}
+
+# Fonction pour supprimer une connexion
+logout_account() {
+  local service="$1"
+  local username="$2"
+  local key_path
+
+  # Vérifier que les arguments sont fournis
+  if [ -z "$service" ] || [ -z "$username" ]; then
+    printf "${RED}Service ou nom d'utilisateur manquant.${NC}\n"
+    return 1
+  fi
+
+  # Récupérer le chemin de la clé
+  key_path=$(grep "^$username:$service:" "$INDEX_FILE" | cut -d: -f3)
+
+  # Vérifier que la clé a été trouvée
+  if [ -z "$key_path" ]; then
+    printf "${RED}Aucune clé trouvée pour %s sur %s.${NC}\n" "$username" "$service"
+    return 1
+  fi
+
+  # Supprimer la ligne correspondante dans l'index
+  sed -i '' "/^$username:$service:/d" "$INDEX_FILE"
+
+  # Vérifier que la ligne a été supprimée
+  if grep -q "^$username:$service:" "$INDEX_FILE"; then
+    printf "${RED}Échec de la suppression de la ligne pour %s sur %s.${NC}\n" "$username" "$service"
+    return 1
+  fi
+
+  # Supprimer les fichiers de clé SSH correspondants
+  if [ -n "$key_path" ]; then
+    rm -f "${key_path}" "${key_path}.pub"
+    printf "Fichiers de clé SSH supprimés : %s, %s.pub\n" "${key_path}" "${key_path}"
+  fi
+
+  printf "Connexion pour %s sur %s supprimée.\n" "$username" "$service"
 }
 
 # Fonction pour afficher tous les dépôts Git avec une barre de progression
 show_repos() {
-    echo "Searching for Git repositories..."
-    local total_repos=0
-    local current_count=0
+  printf "Searching for Git repositories...\n"
+  local total_repos=0
+  local current_count=0
 
-    # Find and count the .git directories
-    total_repos=$(find ~ -maxdepth 5 -type d \( -name .git -o -path '*/.*' -prune \) -a -name .git -print 2>/dev/null | wc -l)
+  # Find and count the .git directories
+  total_repos=$(find ~ -maxdepth 5 -type d \( -name .git -o -path '*/.*' -prune \) -a -name .git -print 2>/dev/null | wc -l)
 
-    if [ $total_repos -eq 0 ]; then
-        echo "No Git repositories found."
-        return
-    fi
+  if [ $total_repos -eq 0 ]; then
+    printf "No Git repositories found.\n"
+    return
+  fi
 
-    find ~ -maxdepth 5 -type d \( -name .git -o -path '*/.*' -prune \) -a -name .git -print 2>/dev/null | while read -r repo; do
-        current_count=$((current_count + 1))
-        repo_path=$(dirname "$repo")
-        repo_name=$(basename "$repo_path")
+  find ~ -maxdepth 5 -type d \( -name .git -o -path '*/.*' -prune \) -a -name .git -print 2>/dev/null | while read -r repo; do
+    current_count=$((current_count + 1))
+    repo_path=$(dirname "$repo")
+    repo_name=$(basename "$repo_path")
 
-        # Clear the previous line
-        printf "\r\033[K"
+    # Clear the previous line
+    printf "\r\033[K"
 
-        # Display the repository information
-        printf "\033[31m%s\033[0m:\n%s\n\n" "$repo_name" "$repo_path"
+    # Display the repository information
+    printf "\033[31m%s\033[0m:\n%s\n\n" "$repo_name" "$repo_path"
 
-        # Display the progress
-        progress=$((current_count * 100 / total_repos))
-        printf "\rProgress: %d%%" "$progress"
-    done
-    echo -e "\nDone."
+    # Display the progress
+    progress=$((current_count * 100 / total_repos))
+    printf "\rProgress: %d%%" "$progress"
+  done
+  printf "\nDone.\n"
 }
 
 # Fonction pour rechercher des dépôts Git contenant un mot-clé avec une barre de progression
 find_repos() {
-    local keyword=$1
-    echo "Searching for Git repositories containing the keyword '$keyword'..."
-    local total_repos=0
-    local current_count=0
+  local keyword=$1
+  printf "Searching for Git repositories containing the keyword '%s'...\n" "$keyword"
+  local total_repos=0
+  local current_count=0
 
-    # Find and count the .git directories
-    total_repos=$(find ~ -maxdepth 5 -type d \( -name .git -o -path '*/.*' -prune \) -a -name .git -print 2>/dev/null | wc -l)
+  # Find and count the .git directories
+  total_repos=$(find ~ -maxdepth 5 -type d \( -name .git -o -path '*/.*' -prune \) -a -name .git -print 2>/dev/null | wc -l)
 
-    if [ $total_repos -eq 0 ]; then
-        echo "No Git repositories found."
-        return
+  if [ $total_repos -eq 0 ]; then
+    printf "No Git repositories found.\n"
+    return
+  fi
+
+  find ~ -maxdepth 5 -type d \( -name .git -o -path '*/.*' -prune \) -a -name .git -print 2>/dev/null | while read -r repo; do
+    current_count=$((current_count + 1))
+    repo_path=$(dirname "$repo")
+    repo_name=$(basename "$repo_path")
+
+    if [[ "$repo_name" == *"$keyword"* ]]; then
+      # Clear the previous line
+      printf "\r\033[K"
+
+      # Display the repository information
+      printf "\033[31m%s\033[0m:\n%s\n\n" "$repo_name" "$repo_path"
     fi
 
-    find ~ -maxdepth 5 -type d \( -name .git -o -path '*/.*' -prune \) -a -name .git -print 2>/dev/null | while read -r repo; do
-        current_count=$((current_count + 1))
-        repo_path=$(dirname "$repo")
-        repo_name=$(basename "$repo_path")
-
-        if [[ "$repo_name" == *"$keyword"* ]]; then
-            # Clear the previous line
-            printf "\r\033[K"
-
-            # Display the repository information
-            printf "\033[31m%s\033[0m:\n%s\n\n" "$repo_name" "$repo_path"
-        fi
-
-        # Display the progress
-        progress=$((current_count * 100 / total_repos))
-        printf "\rProgress: %d%%" "$progress"
-    done
-    echo -e "\nDone."
+    # Display the progress
+    progress=$((current_count * 100 / total_repos))
+    printf "\rProgress: %d%%" "$progress"
+  done
+  printf "\nDone.\n"
 }
 
 # Analyser les arguments de la ligne de commande
 while [[ $# -gt 0 ]]; do
-    case $1 in
-        -s|--show)
-            show=true
-            shift
-            ;;
-        -f|--find)
-            find=true
-            keyword=$2
-            shift 2
-            ;;
-        -h|--help)
-            show_help
-            exit 0
-            ;;
-        *)
-            echo "Invalid option: $1"
-            show_help
-            exit 1
-            ;;
-    esac
+  case $1 in
+    -h|--help)
+      show_help
+      exit 0
+      ;;
+    --connect)
+      action="connect"
+      shift
+      if [[ "$1" == "--github" ]]; then
+        service="GitHub"
+        shift
+        username="$1"
+      elif [[ "$1" == "--gitlab" ]]; then
+        service="GitLab"
+        shift
+        username="$1"
+      else
+        printf "${RED}Option non valide pour --connect. Utilisez --github ou --gitlab.${NC}\n"
+        show_help
+        exit 1
+      fi
+      ;;
+    --set-github)
+      action="set-github"
+      shift
+      username="$1"
+      ;;
+    --set-gitlab)
+      action="set-gitlab"
+      shift
+      username="$1"
+      ;;
+    --default)
+      action="default"
+      ;;
+    --find-ssh)
+      action="find-ssh"
+      shift
+      suboption="$1"
+      ;;
+    --logout)
+      action="logout"
+      shift
+      if [[ "$1" == "--github" ]]; then
+        service="GitHub"
+      elif [[ "$1" == "--gitlab" ]]; then
+        service="GitLab"
+      else
+        printf "${RED}Option non valide pour --logout. Utilisez --github ou --gitlab.${NC}\n"
+        show_help
+        exit 1
+      fi
+      shift
+      username="$1"
+      ;;
+    --show)
+      action="show"
+      ;;
+    --find)
+      action="find"
+      keyword="$2"
+      shift
+      ;;
+    *)
+      printf "Invalid option: %s\n" "$1"
+      show_help
+      exit 1
+      ;;
+  esac
+  shift
 done
 
 # Exécuter les fonctions basées sur les options fournies
-if [[ "$show" == true ]]; then
+case $action in
+  "connect")
+    connect_ssh "$service" "$username"
+    ;;
+  "set-github")
+    set_github "$username"
+    ;;
+  "set-gitlab")
+    set_gitlab "$username"
+    ;;
+  "default")
+    show_default
+    ;;
+  "find-ssh")
+    if [[ "$suboption" == "--github" ]]; then
+      list_keys "github"
+    elif [[ "$suboption" == "--gitlab" ]]; then
+      list_keys "gitlab"
+    elif [[ -n "$suboption" ]]; then
+      list_keys "user" "$suboption"
+    else
+      list_keys "all"
+    fi
+    ;;
+  "logout")
+    logout_account "$service" "$username"
+    ;;
+  "show")
     show_repos
-fi
-
-if [[ "$find" == true ]]; then
+    ;;
+  "find")
     find_repos "$keyword"
-fi
+    ;;
+  *)
+    show_help
+    ;;
+esac
