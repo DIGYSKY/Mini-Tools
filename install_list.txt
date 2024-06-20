@@ -5,3 +5,6 @@ env
 find
 printf
 tar
+ssh
+sed
+git
