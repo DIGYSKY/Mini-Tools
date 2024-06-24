@@ -224,6 +224,9 @@ Add your username in the "Authors" section of the README.md with your contributi
   - Created the Ports Manager tool `portsmanager`
   - Created the Env Manager tool `envmanager`
   - Created main command `minitools`
+  - Created the `gitmanager` tool
+  - Created the `snappertime` tool
+  - Created the `aegis` tool
 
 ## License
 
