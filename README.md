@@ -17,6 +17,7 @@ Mini-Tools is a collection of useful tools for managing various aspects of your 
     - [Options](#options)
     - [Examples](#examples)
     - [Prerequisites](#prerequisites)
+  - [List other tools](#list-other-tools)
 - [Contributions](#contributions)
 - [License](#license)
 - [Authors](#authors)
@@ -194,6 +195,12 @@ Before using `envmanager`, ensure that your system meets the following prerequis
    ```bash
    chmod +x envmanager
    ```
+
+## List other tools
+
+- `gitmanager`: Un outil pour gérer les clés SSH et les dépôts git.
+- `snappertime`: Un outil pour gérer les instantanés de répertoires (en version bêta) et/ou de fichiers (en version finale), afficher les instantanés et restaurer les instantanés.
+- `aegis`: Un outil pour chiffrer et déchiffrer des fichiers et des répertoires.
 
 ## Contributions
 
