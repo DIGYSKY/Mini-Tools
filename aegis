@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+
+import os
+from require.compresser import compresser_tar_gz, decompresser_tar_gz
+from require.crypthaes import crypth_file, decrypt_file
+import argparse
+import base64
+
+def main():
+    parser = argparse.ArgumentParser(description="Copier le contenu d'un fichier source vers un fichier de destination.")
+    parser.add_argument('fichier_source', type=str, help='Le chemin du fichier source. "fichier source"')
+    args = parser.parse_args()
+
+    print(f"Fichier source : {args.fichier_source}")
+
+    arrFile = args.fichier_source.split('.')
+    if arrFile[-1] == 'aegis':
+        # Déchiffrer le fichier
+        key_pass = input("Entrez la clé de déchiffrement : ")
+        try:
+            key_bytes = base64.b64decode(key_pass.encode('utf-8'))
+        except base64.binascii.Error as e:
+            print(f"Erreur de décodage de la clé : {e}")
+            return
+        
+        if len(key_bytes) not in [16, 24, 32]:
+            print("Erreur : la clé doit être de 16, 24 ou 32 bytes après décodage.")
+            return
+        
+        file_name = '.'.join(arrFile[:-1])
+        decrypt_file(args.fichier_source, file_name + '.tar.gz', key_bytes)
+        decompresser_tar_gz(file_name + '.tar.gz', file_name)
+        os.remove(file_name + '.tar.gz')
+    else:
+        print("Entrez la clé de chiffrement de 16, 24 ou 32 bytes (ou appuyez sur Entrée pour générer automatiquement) : ")
+        key_pass = input("=> ")
+        if key_pass:
+            try:
+                key_bytes = base64.b64decode(key_pass.encode('utf-8'))
+            except base64.binascii.Error as e:
+                print(f"Erreur de décodage de la clé : {e}")
+                return
+            
+            if len(key_bytes) not in [16, 24, 32]:
+                print("Erreur : la clé doit être de 16, 24 ou 32 bytes après décodage.")
+                return
+        else:
+            # Générer une clé de chiffrement en bytes
+            key_bytes = os.urandom(32)  # 32 bytes for 256-bit AES key
+        # Compresser le fichier
+        compresser_tar_gz(args.fichier_source, args.fichier_source + '.tar.gz')
+        # Chiffrer le fichier
+        crypth_file(args.fichier_source + '.tar.gz', args.fichier_source + '.aegis', key_bytes)
+        # Supprimer le fichier compressé
+        os.remove(args.fichier_source + '.tar.gz')
+        # Afficher la clé en base64
+        if os.path.exists(args.fichier_source + '.iv'):
+            key_pass = base64.b64encode(key_bytes).decode('utf-8')
+            print(f"Clé de chiffrement (en base64): {key_pass}")
+            print(f'Le fichier {args.fichier_source}.iv doit être placé dans le même dossier que le fichier {args.fichier_source}.aegis pour le déchiffrer')
+        else:
+            print(f"Erreur de chiffrement !")
+
+if __name__ == "__main__":
+    main()
