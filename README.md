@@ -198,9 +198,9 @@ Before using `envmanager`, ensure that your system meets the following prerequis
 
 ## List other tools
 
-- `gitmanager`: Un outil pour gérer les clés SSH et les dépôts git.
-- `snappertime`: Un outil pour gérer les instantanés de répertoires (en version bêta) et/ou de fichiers (en version finale), afficher les instantanés et restaurer les instantanés.
-- `aegis`: Un outil pour chiffrer et déchiffrer des fichiers et des répertoires.
+- `gitmanager`: A tool to manage SSH keys and git repositories.
+- `snappertime`: A tool to manage directory snapshots (in beta) or file snapshots (in final version), show snapshots, and restore snapshots.
+- `aegis`: A tool for crypting and decrypting files and directories.
 
 ## Contributions
 
