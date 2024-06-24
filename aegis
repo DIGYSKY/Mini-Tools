@@ -54,7 +54,7 @@ def main():
         # Supprimer le fichier compressé
         os.remove(args.fichier_source + '.tar.gz')
         # Afficher la clé en base64
-        if os.path.exists(args.fichier_source + '.iv'):
+        if os.path.exists(args.fichier_source + '.aegis.iv'):
             key_pass = base64.b64encode(key_bytes).decode('utf-8')
             print(f"Clé de chiffrement (en base64): {key_pass}")
             print(f'Le fichier {args.fichier_source}.iv doit être placé dans le même dossier que le fichier {args.fichier_source}.aegis pour le déchiffrer')
