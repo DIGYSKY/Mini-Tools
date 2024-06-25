@@ -15,7 +15,6 @@ def main():
 
     arrFile = args.fichier_source.split('.')
     if arrFile[-1] == 'aegis':
-        # Déchiffrer le fichier
         key_pass = input("Entrez la clé de déchiffrement : ")
         try:
             key_bytes = base64.b64decode(key_pass.encode('utf-8'))
@@ -32,7 +31,7 @@ def main():
         decompresser_tar_gz(file_name + '.tar.gz', '_decrypted_' + file_name)
         os.remove(file_name + '.tar.gz')
     else:
-        print("Entrez la clé de chiffrement de 16, 24 ou 32 bytes (ou appuyez sur Entrée pour générer automatiquement) : ")
+        print("Entrez la clé de chiffrement de 32 bytes (ou appuyez sur Entrée pour générer automatiquement) : ")
         key_pass = input("=> ")
         if key_pass:
             try:
@@ -45,21 +44,19 @@ def main():
                 print("Erreur : la clé doit être de 16, 24 ou 32 bytes après décodage.")
                 return
         else:
-            # Générer une clé de chiffrement en bytes
-            key_bytes = os.urandom(32)  # 32 bytes for 256-bit AES key
-        # Compresser le fichier
+            key_bytes = os.urandom(32)
+        print(f"Compression du fichier {args.fichier_source}...")
         compresser_tar_gz(args.fichier_source, args.fichier_source + '.tar.gz')
-        # Chiffrer le fichier
+        print(f"Chiffrement du fichier {args.fichier_source}.tar.gz...")
         crypth_file(args.fichier_source + '.tar.gz', args.fichier_source + '.aegis', key_bytes)
-        # Supprimer le fichier compressé
+        print(f"Suppression du fichier compressé {args.fichier_source}.tar.gz...")
         os.remove(args.fichier_source + '.tar.gz')
-        # Afficher la clé en base64
         if os.path.exists(args.fichier_source + '.aegis.iv'):
             key_pass = base64.b64encode(key_bytes).decode('utf-8')
-            print(f"Clé de chiffrement (en base64): {key_pass}")
-            print(f'Le fichier {args.fichier_source}.iv doit être placé dans le même dossier que le fichier {args.fichier_source}.aegis pour le déchiffrer')
+            print(f"Clé de chiffrement (en base64): \033[92m{key_pass}\033[0m")
+            print(f'\033[91mLe fichier {args.fichier_source}.iv doit être placé dans le même dossier que le fichier {args.fichier_source}.aegis pour le déchiffrer\033[0m')
         else:
-            print(f"Erreur de chiffrement !")
+            print(f"\033[91mErreur de chiffrement !\033[0m")
 
 if __name__ == "__main__":
     main()

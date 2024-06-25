@@ -133,4 +133,22 @@ else
     echo "Les outils ne seront pas rendus exécutables."
 fi
 
+# Fonction pour installer les dépendances Python à partir d'un fichier
+install_python_dependencies() {
+    if [[ -f "install_py.txt" ]]; then
+        echo "Installation des dépendances Python listées dans install_py.txt..."
+        while IFS= read -r package; do
+            echo "Installation de $package..."
+            pip install $package
+        done < "install_py.txt"
+    else
+        echo "Le fichier install_py.txt est introuvable."
+    fi
+}
+
+# Appeler la fonction de vérification des dépendances après la détection du système d'exploitation
+OS=$(detect_os)
+check_and_install_dependencies
+install_python_dependencies
+
 echo "Installation terminée."

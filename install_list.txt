@@ -8,3 +8,5 @@ tar
 ssh
 sed
 git
+pip
+python3
