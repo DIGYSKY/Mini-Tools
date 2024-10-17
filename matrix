@@ -1,0 +1,23 @@
+#!/bin/bash
+while true; do
+    randomValue=$RANDOM
+    cols=$(tput cols)
+
+    limitMin=$(($cols / 3))
+
+    cols=$((($RANDOM % ($cols - $limitMin + 1)) + $limitMin))
+
+    random_string=""
+
+    while [ ${#random_string} -lt $cols ]; do
+        random_string="$random_string$RANDOM"
+    done
+
+    printf "\e[32m%s\e[0m\n" "${random_string:0:$cols}"
+
+    if [ $(($RANDOM % 10)) -lt 2 ]; then
+        echo ""
+    fi
+
+    sleep 0.01
+done
