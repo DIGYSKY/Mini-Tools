@@ -626,6 +626,8 @@ interactive_mode() {
                         if [[ -n "$custom_tool" ]]; then
                             echo -e "${YELLOW}Ouverture avec $custom_tool...${NC}"
                             $custom_tool "$file_path"
+                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                            read
                         else
                             echo -e "${RED}Outil non spécifié${NC}"
                             echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
