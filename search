@@ -1,0 +1,324 @@
+#!/bin/bash
+
+# Search - Outil de recherche avancé pour fichiers et dossiers
+# Version: 1.0.0
+# Description: Programme de recherche global pour rechercher facilement dans le dossier courant
+
+# Couleurs pour l'affichage
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m' # No Color
+
+# Variables par défaut
+SEARCH_DIR="."
+SEARCH_PATTERN=""
+SEARCH_TYPE="both"  # both, files, dirs
+CASE_SENSITIVE=false
+REGEX_MODE=false
+SHOW_HIDDEN=false
+MAX_DEPTH=""
+MIN_SIZE=""
+MAX_SIZE=""
+MODIFIED_DAYS=""
+OUTPUT_FORMAT="detailed"  # detailed, simple, json
+
+# Fonction d'aide
+show_help() {
+    echo -e "${WHITE}Search - Outil de recherche avancé${NC}"
+    echo -e "${CYAN}Usage: search [OPTIONS] PATTERN [DIRECTORY]${NC}"
+    echo ""
+    echo -e "${YELLOW}OPTIONS:${NC}"
+    echo -e "  ${GREEN}-h, --help${NC}              Afficher cette aide"
+    echo -e "  ${GREEN}-d, --directory DIR${NC}     Répertoire de recherche (défaut: .)"
+    echo -e "  ${GREEN}-t, --type TYPE${NC}         Type: files, dirs, both (défaut: both)"
+    echo -e "  ${GREEN}-i, --ignore-case${NC}       Ignorer la casse"
+    echo -e "  ${GREEN}-r, --regex${NC}             Utiliser les expressions régulières"
+    echo -e "  ${GREEN}-a, --all${NC}               Inclure les fichiers cachés"
+    echo -e "  ${GREEN}--max-depth N${NC}           Profondeur maximale de recherche"
+    echo -e "  ${GREEN}--min-size SIZE${NC}         Taille minimale (ex: 1M, 100K)"
+    echo -e "  ${GREEN}--max-size SIZE${NC}         Taille maximale (ex: 10M, 1G)"
+    echo -e "  ${GREEN}--modified N${NC}            Modifié dans les N derniers jours"
+    echo -e "  ${GREEN}--format FORMAT${NC}         Format de sortie: detailed, simple, json"
+    echo ""
+    echo -e "${YELLOW}EXEMPLES:${NC}"
+    echo -e "  ${CYAN}search \"*.py\"${NC}                    # Rechercher tous les fichiers Python"
+    echo -e "  ${CYAN}search -t files \"config\"${NC}         # Rechercher fichiers contenant 'config'"
+    echo -e "  ${CYAN}search -r \"^[A-Z].*\"${NC}             # Rechercher avec regex"
+    echo -e "  ${CYAN}search --min-size 1M --max-size 10M${NC} # Fichiers entre 1M et 10M"
+    echo -e "  ${CYAN}search --modified 7 \"*.log\"${NC}      # Fichiers .log modifiés cette semaine"
+    echo ""
+}
+
+# Fonction pour convertir les tailles
+parse_size() {
+    local size=$1
+    if [[ $size =~ ^([0-9]+)([KkMmGg]?)$ ]]; then
+        local num=${BASH_REMATCH[1]}
+        local unit=${BASH_REMATCH[2],,}
+        case $unit in
+            k) echo $((num * 1024)) ;;
+            m) echo $((num * 1024 * 1024)) ;;
+            g) echo $((num * 1024 * 1024 * 1024)) ;;
+            *) echo $num ;;
+        esac
+    else
+        echo "0"
+    fi
+}
+
+# Fonction de recherche principale
+search_files() {
+    local pattern="$1"
+    local search_dir="$2"
+    
+    # Construire la commande find
+    local find_cmd="find \"$search_dir\""
+    
+    # Ajouter la profondeur maximale
+    if [[ -n "$MAX_DEPTH" ]]; then
+        find_cmd="$find_cmd -maxdepth $MAX_DEPTH"
+    fi
+    
+    # Ajouter le type de recherche
+    case $SEARCH_TYPE in
+        files) find_cmd="$find_cmd -type f" ;;
+        dirs) find_cmd="$find_cmd -type d" ;;
+    esac
+    
+    # Ajouter les fichiers cachés
+    if [[ "$SHOW_HIDDEN" == false ]]; then
+        find_cmd="$find_cmd -not -path '*/.*'"
+    fi
+    
+    # Ajouter les filtres de taille
+    if [[ -n "$MIN_SIZE" ]]; then
+        local min_bytes=$(parse_size "$MIN_SIZE")
+        find_cmd="$find_cmd -size +${min_bytes}c"
+    fi
+    
+    if [[ -n "$MAX_SIZE" ]]; then
+        local max_bytes=$(parse_size "$MAX_SIZE")
+        find_cmd="$find_cmd -size -${max_bytes}c"
+    fi
+    
+    # Ajouter le filtre de date
+    if [[ -n "$MODIFIED_DAYS" ]]; then
+        find_cmd="$find_cmd -mtime -$MODIFIED_DAYS"
+    fi
+    
+    # Ajouter le pattern de nom
+    if [[ "$REGEX_MODE" == true ]]; then
+        find_cmd="$find_cmd -regex \".*$pattern.*\""
+    else
+        if [[ "$CASE_SENSITIVE" == true ]]; then
+            find_cmd="$find_cmd -name \"*$pattern*\""
+        else
+            find_cmd="$find_cmd -iname \"*$pattern*\""
+        fi
+    fi
+    
+    # Exécuter la recherche
+    eval "$find_cmd" | while read -r file; do
+        if [[ -n "$file" ]]; then
+            display_result "$file"
+        fi
+    done
+}
+
+# Fonction pour afficher les résultats
+display_result() {
+    local file="$1"
+    
+    case $OUTPUT_FORMAT in
+        simple)
+            echo "$file"
+            ;;
+        json)
+            local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo "0")
+            local modified=$(stat -f%m "$file" 2>/dev/null || stat -c%Y "$file" 2>/dev/null || echo "0")
+            local type="file"
+            if [[ -d "$file" ]]; then
+                type="directory"
+            fi
+            echo "{\"path\":\"$file\",\"type\":\"$type\",\"size\":$size,\"modified\":$modified}"
+            ;;
+        detailed|*)
+            local size=""
+            local modified=""
+            local type=""
+            
+            if [[ -d "$file" ]]; then
+                type="${BLUE}[DIR]${NC}"
+                size=$(du -sh "$file" 2>/dev/null | cut -f1 || echo "?")
+            else
+                type="${GREEN}[FILE]${NC}"
+                size=$(ls -lh "$file" 2>/dev/null | awk '{print $5}' || echo "?")
+            fi
+            
+            modified=$(ls -l "$file" 2>/dev/null | awk '{print $6, $7, $8}' || echo "?")
+            
+            printf "${WHITE}%-50s${NC} ${type} ${YELLOW}%8s${NC} ${PURPLE}%s${NC}\n" "$file" "$size" "$modified"
+            ;;
+    esac
+}
+
+# Fonction pour rechercher dans le contenu des fichiers
+search_content() {
+    local pattern="$1"
+    local search_dir="$2"
+    
+    local grep_cmd="grep -r"
+    
+    if [[ "$CASE_SENSITIVE" == false ]]; then
+        grep_cmd="$grep_cmd -i"
+    fi
+    
+    if [[ "$REGEX_MODE" == true ]]; then
+        grep_cmd="$grep_cmd -E"
+    else
+        grep_cmd="$grep_cmd -F"
+    fi
+    
+    if [[ "$SHOW_HIDDEN" == false ]]; then
+        grep_cmd="$grep_cmd --exclude-dir='.*'"
+    fi
+    
+    grep_cmd="$grep_cmd -n \"$pattern\" \"$search_dir\""
+    
+    echo -e "${CYAN}Recherche dans le contenu des fichiers:${NC}"
+    eval "$grep_cmd" 2>/dev/null | while IFS=: read -r file line content; do
+        printf "${GREEN}%s${NC}:${YELLOW}%s${NC}: %s\n" "$file" "$line" "$content"
+    done
+}
+
+# Fonction principale
+main() {
+    local search_pattern=""
+    local search_directory="."
+    local search_content_flag=false
+    
+    # Parser les arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            -d|--directory)
+                SEARCH_DIR="$2"
+                shift 2
+                ;;
+            -t|--type)
+                SEARCH_TYPE="$2"
+                if [[ ! "$SEARCH_TYPE" =~ ^(files|dirs|both)$ ]]; then
+                    echo -e "${RED}Erreur: Type invalide. Utilisez: files, dirs, ou both${NC}"
+                    exit 1
+                fi
+                shift 2
+                ;;
+            -i|--ignore-case)
+                CASE_SENSITIVE=false
+                shift
+                ;;
+            -r|--regex)
+                REGEX_MODE=true
+                shift
+                ;;
+            -a|--all)
+                SHOW_HIDDEN=true
+                shift
+                ;;
+            --max-depth)
+                MAX_DEPTH="$2"
+                shift 2
+                ;;
+            --min-size)
+                MIN_SIZE="$2"
+                shift 2
+                ;;
+            --max-size)
+                MAX_SIZE="$2"
+                shift 2
+                ;;
+            --modified)
+                MODIFIED_DAYS="$2"
+                shift 2
+                ;;
+            --format)
+                OUTPUT_FORMAT="$2"
+                if [[ ! "$OUTPUT_FORMAT" =~ ^(detailed|simple|json)$ ]]; then
+                    echo -e "${RED}Erreur: Format invalide. Utilisez: detailed, simple, ou json${NC}"
+                    exit 1
+                fi
+                shift 2
+                ;;
+            -c|--content)
+                search_content_flag=true
+                shift
+                ;;
+            -*)
+                echo -e "${RED}Erreur: Option inconnue $1${NC}"
+                show_help
+                exit 1
+                ;;
+            *)
+                if [[ -z "$search_pattern" ]]; then
+                    search_pattern="$1"
+                elif [[ "$search_directory" == "." ]]; then
+                    search_directory="$1"
+                fi
+                shift
+                ;;
+        esac
+    done
+    
+    # Vérifier qu'un pattern a été fourni
+    if [[ -z "$search_pattern" ]]; then
+        echo -e "${RED}Erreur: Veuillez fournir un pattern de recherche${NC}"
+        show_help
+        exit 1
+    fi
+    
+    # Vérifier que le répertoire existe
+    if [[ ! -d "$search_directory" ]]; then
+        echo -e "${RED}Erreur: Le répertoire '$search_directory' n'existe pas${NC}"
+        exit 1
+    fi
+    
+    # Afficher les paramètres de recherche
+    echo -e "${WHITE}=== Recherche ===${NC}"
+    echo -e "${CYAN}Pattern:${NC} $search_pattern"
+    echo -e "${CYAN}Répertoire:${NC} $search_directory"
+    echo -e "${CYAN}Type:${NC} $SEARCH_TYPE"
+    echo -e "${CYAN}Mode regex:${NC} $REGEX_MODE"
+    echo -e "${CYAN}Cas sensible:${NC} $CASE_SENSITIVE"
+    echo -e "${CYAN}Fichiers cachés:${NC} $SHOW_HIDDEN"
+    if [[ -n "$MAX_DEPTH" ]]; then
+        echo -e "${CYAN}Profondeur max:${NC} $MAX_DEPTH"
+    fi
+    if [[ -n "$MIN_SIZE" ]]; then
+        echo -e "${CYAN}Taille min:${NC} $MIN_SIZE"
+    fi
+    if [[ -n "$MAX_SIZE" ]]; then
+        echo -e "${CYAN}Taille max:${NC} $MAX_SIZE"
+    fi
+    if [[ -n "$MODIFIED_DAYS" ]]; then
+        echo -e "${CYAN}Modifié dans:${NC} $MODIFIED_DAYS jours"
+    fi
+    echo ""
+    
+    # Effectuer la recherche
+    if [[ "$search_content_flag" == true ]]; then
+        search_content "$search_pattern" "$search_directory"
+    else
+        search_files "$search_pattern" "$search_directory"
+    fi
+}
+
+# Exécuter le programme principal
+main "$@"
