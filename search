@@ -564,8 +564,8 @@ interactive_mode() {
         local file_name=$(basename "$file_path")
         
         # Définir les outils disponibles
-        local tools=("nano" "vim" "code" "cursor" "autres")
-        local tool_names=("nano" "vim" "VS Code" "Cursor" "Autres (spécifier)")
+        local tools=("nano" "cat" "catimg" "vim" "code" "cursor" "autres")
+        local tool_names=("nano" "cat" "catimg" "vim" "VS Code" "Cursor" "Autres (spécifier)")
         local selected_tool=0
         
         while true; do
