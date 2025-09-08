@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 SEARCH_DIR="."
 SEARCH_PATTERN=""
 SEARCH_TYPE="both"  # both, files, dirs
-CASE_SENSITIVE=false
+CASE_SENSITIVE=true
 REGEX_MODE=false
 SHOW_HIDDEN=false
 MAX_DEPTH="1"  # Profondeur par défaut de 1 (répertoire courant uniquement)
@@ -30,7 +30,11 @@ OUTPUT_FORMAT="detailed"  # detailed, simple, json
 # Fonction d'aide
 show_help() {
     echo -e "${WHITE}Search - Outil de recherche avancé${NC}"
-    echo -e "${CYAN}Usage: search [OPTIONS] PATTERN [DIRECTORY]${NC}"
+    echo -e "${CYAN}Usage: search [OPTIONS] [PATTERN] [DIRECTORY]${NC}"
+    echo ""
+    echo -e "${YELLOW}COMPORTEMENT PAR DÉFAUT:${NC}"
+    echo -e "  ${GREEN}search${NC}                      # Affiche le contenu du dossier courant"
+    echo -e "  ${GREEN}search PATTERN${NC}              # Recherche PATTERN dans le dossier courant"
     echo ""
     echo -e "${YELLOW}OPTIONS:${NC}"
     echo -e "  ${GREEN}-h, --help${NC}              Afficher cette aide"
@@ -46,6 +50,7 @@ show_help() {
     echo -e "  ${GREEN}--format FORMAT${NC}         Format de sortie: detailed, simple, json"
     echo ""
     echo -e "${YELLOW}EXEMPLES:${NC}"
+    echo -e "  ${CYAN}search${NC}                            # Afficher le contenu du dossier courant"
     echo -e "  ${CYAN}search \"*.py\"${NC}                    # Rechercher tous les fichiers Python"
     echo -e "  ${CYAN}search -t files \"config\"${NC}         # Rechercher fichiers contenant 'config'"
     echo -e "  ${CYAN}search -r \"^[A-Z].*\"${NC}             # Rechercher avec regex"
@@ -148,15 +153,22 @@ display_result() {
         json)
             local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo "0")
             local modified=$(stat -f%m "$file" 2>/dev/null || stat -c%Y "$file" 2>/dev/null || echo "0")
+            local created=""
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                created=$(stat -f%B "$file" 2>/dev/null || echo "0")
+            else
+                created=$(stat -c%W "$file" 2>/dev/null || echo "0")
+            fi
             local type="file"
             if [[ -d "$file" ]]; then
                 type="directory"
             fi
-            echo "{\"path\":\"$file\",\"type\":\"$type\",\"size\":$size,\"modified\":$modified}"
+            echo "{\"path\":\"$file\",\"type\":\"$type\",\"size\":$size,\"modified\":$modified,\"created\":$created}"
             ;;
         detailed|*)
             local size=""
             local modified=""
+            local created=""
             local type=""
             
             if [[ -d "$file" ]]; then
@@ -169,7 +181,7 @@ display_result() {
                 size=$(ls -lh "$file" 2>/dev/null | awk '{print $5}' | head -1 || echo "?")
             fi
             
-            # Obtenir la date de modification de manière plus robuste
+            # Obtenir la date de modification
             if [[ -d "$file" ]]; then
                 # Pour les dossiers, utiliser la date du dossier lui-même
                 modified=$(ls -ld "$file" 2>/dev/null | awk '{print $6, $7, $8}' | head -1 || echo "?")
@@ -178,9 +190,24 @@ display_result() {
                 modified=$(ls -l "$file" 2>/dev/null | awk '{print $6, $7, $8}' | head -1 || echo "?")
             fi
             
+            # Obtenir la date de création (birth time)
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                # Sur macOS, utiliser stat avec -f pour birth time
+                created=$(stat -f "%SB" -t "%d %b %H:%M" "$file" 2>/dev/null || echo "?")
+            else
+                # Sur Linux, utiliser stat avec -c pour birth time
+                created=$(stat -c "%w" "$file" 2>/dev/null | awk '{print $1, $2, $3}' | sed 's/^[0-9-]* //' || echo "?")
+            fi
+            
+            # Si la date de création n'est pas disponible, utiliser la date de modification
+            if [[ "$created" == "?" || -z "$created" ]]; then
+                created="$modified"
+            fi
+            
             # Nettoyer les variables pour éviter les lignes vides
             size=$(echo "$size" | tr -d '\n\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
             modified=$(echo "$modified" | tr -d '\n\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            created=$(echo "$created" | tr -d '\n\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
             
             # S'assurer que nous avons des valeurs valides
             if [[ -z "$size" || "$size" == "?" ]]; then
@@ -189,9 +216,12 @@ display_result() {
             if [[ -z "$modified" || "$modified" == "?" ]]; then
                 modified="?"
             fi
+            if [[ -z "$created" || "$created" == "?" ]]; then
+                created="?"
+            fi
             
-            # Afficher le résultat avec un formatage amélioré
-            printf "${WHITE}%-60s${NC} ${type} ${YELLOW}%8s${NC} ${PURPLE}%s${NC}\n" "$file" "$size" "$modified"
+            # Afficher le résultat avec les deux dates
+            printf "${WHITE}%-50s${NC} ${type} ${YELLOW}%8s${NC} ${PURPLE}Mod: %s${NC} ${CYAN}Créé: %s${NC}\n" "$file" "$size" "$modified" "$created"
             ;;
     esac
 }
@@ -306,11 +336,39 @@ main() {
         esac
     done
     
-    # Vérifier qu'un pattern a été fourni
+    # Si aucun pattern n'est fourni, afficher le contenu du dossier courant
     if [[ -z "$search_pattern" ]]; then
-        echo -e "${RED}Erreur: Veuillez fournir un pattern de recherche${NC}"
-        show_help
-        exit 1
+        echo -e "${WHITE}=== Contenu du dossier courant ===${NC}"
+        echo -e "${CYAN}Répertoire:${NC} $search_directory"
+        echo -e "${CYAN}Type:${NC} $SEARCH_TYPE"
+        echo -e "${CYAN}Profondeur max:${NC} $MAX_DEPTH"
+        echo -e "${CYAN}Fichiers cachés:${NC} $SHOW_HIDDEN"
+        echo ""
+        
+        # Afficher tous les fichiers et dossiers du répertoire courant
+        local find_cmd=""
+        
+        if [[ "$SEARCH_TYPE" == "files" ]]; then
+            find_cmd="find \"$search_directory\" -maxdepth $MAX_DEPTH -type f"
+        elif [[ "$SEARCH_TYPE" == "dirs" ]]; then
+            find_cmd="find \"$search_directory\" -maxdepth $MAX_DEPTH -type d"
+        else
+            # Afficher fichiers et dossiers
+            find_cmd="find \"$search_directory\" -maxdepth $MAX_DEPTH"
+        fi
+        
+        # Ajouter l'exclusion des fichiers cachés si l'option -a n'est pas utilisée
+        if [[ "$SHOW_HIDDEN" == false ]]; then
+            find_cmd="$find_cmd -not -path '*/.*'"
+        fi
+        
+        # Exécuter la commande find
+        eval "$find_cmd" 2>/dev/null | while IFS= read -r file; do
+            if [[ -n "$file" && -e "$file" ]]; then
+                display_result "$file"
+            fi
+        done
+        exit 0
     fi
     
     # Vérifier que le répertoire existe
