@@ -636,6 +636,10 @@ interactive_mode() {
                     else
                         echo -e "${YELLOW}Ouverture avec $chosen_tool...${NC}"
                         $chosen_tool "$file_path"
+                        if [[ "$chosen_tool" == "catimg" || "$chosen_tool" == "cat" ]]; then
+                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                            read
+                        fi
                     fi
                     return
                     ;;
