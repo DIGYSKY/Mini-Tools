@@ -20,6 +20,7 @@ SEARCH_PATTERN=""
 SEARCH_TYPE="both"  # both, files, dirs
 CASE_SENSITIVE=true
 REGEX_MODE=false
+EXACT_MATCH=false  # Recherche exacte du nom (non stricte)
 SHOW_HIDDEN=false
 MAX_DEPTH="1"  # Profondeur par défaut de 1 (répertoire courant uniquement)
 MIN_SIZE=""
@@ -42,6 +43,7 @@ show_help() {
     echo -e "  ${GREEN}-t, --type TYPE${NC}         Type: files, dirs, both (défaut: both)"
     echo -e "  ${GREEN}-i, --ignore-case${NC}       Ignorer la casse"
     echo -e "  ${GREEN}-r, --regex${NC}             Utiliser les expressions régulières"
+    echo -e "  ${GREEN}-e, --exact${NC}             Recherche exacte du nom (non stricte)"
     echo -e "  ${GREEN}-a, --all${NC}               Inclure les fichiers cachés"
     echo -e "  ${GREEN}--max-depth N${NC}           Profondeur maximale de recherche (défaut: 1)"
     echo -e "  ${GREEN}--min-size SIZE${NC}         Taille minimale (ex: 1M, 100K)"
@@ -53,6 +55,7 @@ show_help() {
     echo -e "  ${CYAN}search${NC}                            # Afficher le contenu du dossier courant"
     echo -e "  ${CYAN}search \"*.py\"${NC}                    # Rechercher tous les fichiers Python"
     echo -e "  ${CYAN}search -t files \"config\"${NC}         # Rechercher fichiers contenant 'config'"
+    echo -e "  ${CYAN}search -e \"mini\"${NC}                 # Rechercher fichiers/dossiers nommés exactement 'mini'"
     echo -e "  ${CYAN}search -r \"^[A-Z].*\"${NC}             # Rechercher avec regex"
     echo -e "  ${CYAN}search --min-size 1M --max-size 10M${NC} # Fichiers entre 1M et 10M"
     echo -e "  ${CYAN}search --modified 7 \"*.log\"${NC}      # Fichiers .log modifiés cette semaine"
@@ -119,7 +122,15 @@ search_files() {
     # Ajouter le pattern de nom
     if [[ "$REGEX_MODE" == true ]]; then
         find_cmd="$find_cmd -regex \".*$pattern.*\""
+    elif [[ "$EXACT_MATCH" == true ]]; then
+        # Recherche exacte du nom (sans extension pour les fichiers)
+        if [[ "$CASE_SENSITIVE" == true ]]; then
+            find_cmd="$find_cmd -name \"$pattern\""
+        else
+            find_cmd="$find_cmd -iname \"$pattern\""
+        fi
     else
+        # Recherche partielle (comportement par défaut)
         if [[ "$CASE_SENSITIVE" == true ]]; then
             find_cmd="$find_cmd -name \"*$pattern*\""
         else
@@ -288,6 +299,10 @@ main() {
                 REGEX_MODE=true
                 shift
                 ;;
+            -e|--exact)
+                EXACT_MATCH=true
+                shift
+                ;;
             -a|--all)
                 SHOW_HIDDEN=true
                 shift
@@ -383,6 +398,7 @@ main() {
     echo -e "${CYAN}Répertoire:${NC} $search_directory"
     echo -e "${CYAN}Type:${NC} $SEARCH_TYPE"
     echo -e "${CYAN}Mode regex:${NC} $REGEX_MODE"
+    echo -e "${CYAN}Recherche exacte:${NC} $EXACT_MATCH"
     echo -e "${CYAN}Cas sensible:${NC} $CASE_SENSITIVE"
     echo -e "${CYAN}Fichiers cachés:${NC} $SHOW_HIDDEN"
     if [[ -n "$MAX_DEPTH" ]]; then
