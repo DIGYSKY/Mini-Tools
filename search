@@ -1989,10 +1989,19 @@ interactive_mode() {
         if [[ -n "$SSH_CLIENT" || -n "$SSH_TTY" ]]; then
             # On est dans une session SSH, détecter la connexion
             if [[ -n "$SSH_CONNECTION" ]]; then
-                # Extraire l'IP de la connexion SSH
+                # Extraire l'IP de la connexion SSH (machine source = machine locale)
                 local ssh_ip=$(echo "$SSH_CONNECTION" | awk '{print $1}')
-                # Essayer de trouver le nom d'hôte correspondant
-                current_ssh_connection=$(hostname -f 2>/dev/null || hostname)
+                # Pour la copie "depuis machine distante", on veut copier depuis la machine locale
+                # (celle qui a initié la connexion SSH) vers la machine distante actuelle
+                current_ssh_connection="$ssh_ip"
+                
+                # Essayer de trouver un nom d'hôte plus convivial
+                if command -v nslookup >/dev/null 2>&1; then
+                    local hostname=$(nslookup "$ssh_ip" 2>/dev/null | grep "name" | tail -1 | awk '{print $4}' | sed 's/\.$//')
+                    if [[ -n "$hostname" ]]; then
+                        current_ssh_connection="$hostname"
+                    fi
+                fi
             fi
         fi
         
