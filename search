@@ -441,6 +441,12 @@ interactive_mode() {
         echo -e "  ${GREEN}s${NC} : Sélectionner ce répertoire"
         echo -e "  ${GREEN}h${NC} : Basculer les fichiers cachés"
         echo -e "  ${GREEN}←/→${NC} : Page précédente/suivante"
+        
+        # Vérifier si c'est un repository Git
+        if [[ -d "$current_dir/.git" ]]; then
+            echo -e "  ${GREEN}g${NC} : Gérer le repository Git"
+        fi
+        
         echo -e "  ${GREEN}q${NC} : Quitter"
         echo ""
         
@@ -650,8 +656,22 @@ interactive_mode() {
             done
         fi
         
-        # Définir les options du menu
-        local menu_options=("Afficher détails" "Renommer" "Supprimer" "Déplacer" "Créer fichier" "Créer dossier")
+        # Définir les options du menu selon le type d'élément
+        local menu_options=("Afficher détails" "Renommer" "Supprimer" "Déplacer")
+        
+        # Ajouter les options de compression/décompression
+        if [[ "$selected_type" == "dir" ]]; then
+            menu_options+=("Zipper le dossier")
+        elif [[ "$selected_type" == "file" ]]; then
+            # Vérifier si c'est un fichier zip
+            if [[ "$selected_item" == *.zip ]]; then
+                menu_options+=("Dézipper le fichier")
+            else
+                menu_options+=("Zipper le fichier")
+            fi
+        fi
+        
+        menu_options+=("Créer fichier" "Créer dossier")
         local selected_option=0
         
         while true; do
@@ -718,6 +738,15 @@ interactive_mode() {
                             ;;
                         "Déplacer")
                             move_item "$selected_path" "$selected_item" "$selected_type"
+                            ;;
+                        "Zipper le dossier")
+                            zip_item "$selected_path" "$selected_item" "$selected_type"
+                            ;;
+                        "Zipper le fichier")
+                            zip_item "$selected_path" "$selected_item" "$selected_type"
+                            ;;
+                        "Dézipper le fichier")
+                            unzip_item "$selected_path" "$selected_item" "$selected_type"
                             ;;
                         "Créer fichier")
                             create_file "$current_dir"
@@ -1282,6 +1311,146 @@ interactive_mode() {
         done
     }
     
+    # Fonction pour zipper un élément
+    zip_item() {
+        local item_path="$1"
+        local item_name="$2"
+        local item_type="$3"
+        
+        clear
+        echo -e "${WHITE}=== Zipper ===${NC}"
+        echo -e "${CYAN}Élément:${NC} $item_name"
+        echo -e "${CYAN}Type:${NC} $item_type"
+        echo -e "${CYAN}Chemin:${NC} $item_path"
+        echo ""
+        
+        # Vérifier si zip est disponible
+        if ! command -v zip >/dev/null 2>&1; then
+            echo -e "${RED}Erreur: La commande 'zip' n'est pas disponible${NC}"
+            echo -e "${YELLOW}Veuillez installer zip pour utiliser cette fonctionnalité${NC}"
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        # Demander le nom du fichier zip
+        local zip_name="${item_name%.*}.zip"
+        echo -e "${CYAN}Nom du fichier zip (défaut: $zip_name):${NC} "
+        read -r custom_zip_name
+        
+        if [[ -n "$custom_zip_name" ]]; then
+            zip_name="$custom_zip_name"
+            # Ajouter l'extension .zip si elle n'est pas présente
+            if [[ "$zip_name" != *.zip ]]; then
+                zip_name="${zip_name}.zip"
+            fi
+        fi
+        
+        local zip_path="$current_dir/$zip_name"
+        
+        # Vérifier si le fichier zip existe déjà
+        if [[ -e "$zip_path" ]]; then
+            echo -e "${RED}Erreur: Un fichier avec ce nom existe déjà${NC}"
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        echo -e "${YELLOW}Compression en cours...${NC}"
+        
+        # Effectuer la compression
+        if [[ "$item_type" == "dir" ]]; then
+            # Pour un dossier, compresser le contenu
+            if (cd "$(dirname "$item_path")" && zip -r "$zip_path" "$(basename "$item_path")" >/dev/null 2>&1); then
+                echo -e "${GREEN}Dossier compressé avec succès: $zip_name${NC}"
+            else
+                echo -e "${RED}Erreur lors de la compression du dossier${NC}"
+            fi
+        else
+            # Pour un fichier, le compresser directement
+            if (cd "$(dirname "$item_path")" && zip "$zip_path" "$(basename "$item_path")" >/dev/null 2>&1); then
+                echo -e "${GREEN}Fichier compressé avec succès: $zip_name${NC}"
+            else
+                echo -e "${RED}Erreur lors de la compression du fichier${NC}"
+            fi
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour dézipper un fichier
+    unzip_item() {
+        local item_path="$1"
+        local item_name="$2"
+        local item_type="$3"
+        
+        clear
+        echo -e "${WHITE}=== Dézipper ===${NC}"
+        echo -e "${CYAN}Élément:${NC} $item_name"
+        echo -e "${CYAN}Type:${NC} $item_type"
+        echo -e "${CYAN}Chemin:${NC} $item_path"
+        echo ""
+        
+        # Vérifier si unzip est disponible
+        if ! command -v unzip >/dev/null 2>&1; then
+            echo -e "${RED}Erreur: La commande 'unzip' n'est pas disponible${NC}"
+            echo -e "${YELLOW}Veuillez installer unzip pour utiliser cette fonctionnalité${NC}"
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        # Vérifier que c'est bien un fichier zip
+        if ! unzip -t "$item_path" >/dev/null 2>&1; then
+            echo -e "${RED}Erreur: Ce fichier n'est pas un fichier zip valide${NC}"
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        # Demander le répertoire de destination
+        local dest_dir="$current_dir"
+        echo -e "${CYAN}Répertoire de destination (défaut: $dest_dir):${NC} "
+        read -r custom_dest_dir
+        
+        if [[ -n "$custom_dest_dir" ]]; then
+            dest_dir="$custom_dest_dir"
+            # Convertir le chemin relatif en absolu si nécessaire
+            if [[ "$dest_dir" != /* ]]; then
+                dest_dir="$current_dir/$dest_dir"
+            fi
+        fi
+        
+        # Vérifier que le répertoire de destination existe
+        if [[ ! -d "$dest_dir" ]]; then
+            echo -e "${RED}Erreur: Le répertoire de destination n'existe pas${NC}"
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        echo -e "${YELLOW}Décompression en cours...${NC}"
+        
+        # Effectuer la décompression
+        if (cd "$dest_dir" && unzip -q "$item_path" 2>/dev/null); then
+            echo -e "${GREEN}Fichier décompressé avec succès dans: $dest_dir${NC}"
+            
+            # Afficher le contenu décompressé
+            echo -e "${CYAN}Contenu décompressé:${NC}"
+            (cd "$dest_dir" && unzip -l "$item_path" 2>/dev/null | tail -n +4 | head -n -2 | awk '{print "  " $4}' | head -10)
+            local total_files=$(unzip -l "$item_path" 2>/dev/null | tail -1 | awk '{print $2}')
+            if [[ $total_files -gt 10 ]]; then
+                echo -e "  ${PURPLE}... et $((total_files - 10)) autres fichiers${NC}"
+            fi
+        else
+            echo -e "${RED}Erreur lors de la décompression${NC}"
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
     # Fonction pour créer un fichier
     create_file() {
         local parent_dir="$1"
@@ -1433,6 +1602,377 @@ interactive_mode() {
                     ;;
             esac
         done
+    }
+    
+    # Fonction pour gérer le repository Git
+    git_manager() {
+        # Vérifier si git est disponible
+        if ! command -v git >/dev/null 2>&1; then
+            echo -e "${RED}Erreur: Git n'est pas installé${NC}"
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        # Définir les options du menu Git
+        local git_options=("Statut" "Log" "Branches" "Diff" "Add" "Commit" "Push" "Pull" "Clone" "Init")
+        local selected_option=0
+        
+        while true; do
+            clear
+            echo -e "${WHITE}=== Gestionnaire Git ===${NC}"
+            echo -e "${CYAN}Repository:${NC} $(realpath "$current_dir")"
+            echo -e "${CYAN}Branche actuelle:${NC} $(git -C "$current_dir" branch --show-current 2>/dev/null || echo "N/A")"
+            echo -e "${CYAN}Dernier commit:${NC} $(git -C "$current_dir" log -1 --oneline 2>/dev/null || echo "N/A")"
+            echo ""
+            echo -e "${YELLOW}Actions disponibles:${NC}"
+            echo ""
+            
+            # Afficher les options avec sélection
+            for ((i=0; i<${#git_options[@]}; i++)); do
+                local prefix="  "
+                local color=""
+                
+                if [[ $i -eq $selected_option ]]; then
+                    prefix="> "
+                    color="${WHITE}"
+                fi
+                
+                echo -e "${prefix}${color}${GREEN}[GIT]${NC} ${color}${git_options[$i]}${NC}"
+            done
+            
+            echo ""
+            echo -e "${YELLOW}Contrôles:${NC}"
+            echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+            echo -e "  ${GREEN}Entrée${NC} : Sélectionner"
+            echo -e "  ${GREEN}q${NC} : Retour"
+            echo ""
+            
+            # Lire la touche
+            read -rsn1 key
+            
+            case "$key" in
+                $'\e')  # Séquence d'échappement
+                    read -rsn2 key
+                    case "$key" in
+                        '[A')  # Flèche haut
+                            if [[ $selected_option -gt 0 ]]; then
+                                selected_option=$((selected_option - 1))
+                            fi
+                            ;;
+                        '[B')  # Flèche bas
+                            if [[ $selected_option -lt $((${#git_options[@]} - 1)) ]]; then
+                                selected_option=$((selected_option + 1))
+                            fi
+                            ;;
+                    esac
+                    ;;
+                '')  # Entrée
+                    local chosen_action="${git_options[$selected_option]}"
+                    
+                    case "$chosen_action" in
+                        "Statut")
+                            git_status_view
+                            ;;
+                        "Log")
+                            git_log_view
+                            ;;
+                        "Branches")
+                            git_branches_view
+                            ;;
+                        "Diff")
+                            git_diff_view
+                            ;;
+                        "Add")
+                            git_add_files
+                            ;;
+                        "Commit")
+                            git_commit_changes
+                            ;;
+                        "Push")
+                            git_push_changes
+                            ;;
+                        "Pull")
+                            git_pull_changes
+                            ;;
+                        "Clone")
+                            git_clone_repo
+                            ;;
+                        "Init")
+                            git_init_repo
+                            ;;
+                    esac
+                    return
+                    ;;
+                'q')  # Quitter
+                    return
+                    ;;
+            esac
+        done
+    }
+    
+    # Fonction pour afficher le statut Git
+    git_status_view() {
+        clear
+        echo -e "${WHITE}=== Statut Git ===${NC}"
+        echo -e "${CYAN}Repository:${NC} $(realpath "$current_dir")"
+        echo ""
+        
+        # Afficher le statut
+        echo -e "${YELLOW}Statut:${NC}"
+        git -C "$current_dir" status --porcelain 2>/dev/null | while read -r line; do
+            local status="${line:0:2}"
+            local file="${line:3}"
+            
+            case "$status" in
+                "??")
+                    echo -e "  ${GREEN}Nouveau:${NC} $file"
+                    ;;
+                "A ")
+                    echo -e "  ${BLUE}Ajouté:${NC} $file"
+                    ;;
+                "M ")
+                    echo -e "  ${YELLOW}Modifié:${NC} $file"
+                    ;;
+                " D")
+                    echo -e "  ${RED}Supprimé:${NC} $file"
+                    ;;
+                "MM")
+                    echo -e "  ${PURPLE}Modifié (staged):${NC} $file"
+                    ;;
+                *)
+                    echo -e "  ${WHITE}$status:${NC} $file"
+                    ;;
+            esac
+        done
+        
+        echo ""
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour afficher le log Git
+    git_log_view() {
+        clear
+        echo -e "${WHITE}=== Log Git ===${NC}"
+        echo -e "${CYAN}Repository:${NC} $(realpath "$current_dir")"
+        echo ""
+        
+        # Afficher les 10 derniers commits
+        echo -e "${YELLOW}Derniers commits:${NC}"
+        git -C "$current_dir" log --oneline -10 2>/dev/null | while read -r line; do
+            echo -e "  ${GREEN}$line${NC}"
+        done
+        
+        echo ""
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour afficher les branches
+    git_branches_view() {
+        clear
+        echo -e "${WHITE}=== Branches Git ===${NC}"
+        echo -e "${CYAN}Repository:${NC} $(realpath "$current_dir")"
+        echo ""
+        
+        # Afficher les branches locales
+        echo -e "${YELLOW}Branches locales:${NC}"
+        git -C "$current_dir" branch 2>/dev/null | while read -r line; do
+            if [[ "$line" =~ ^\* ]]; then
+                echo -e "  ${GREEN}→ $line${NC}"
+            else
+                echo -e "  ${WHITE}  $line${NC}"
+            fi
+        done
+        
+        echo ""
+        echo -e "${YELLOW}Branches distantes:${NC}"
+        git -C "$current_dir" branch -r 2>/dev/null | while read -r line; do
+            echo -e "  ${BLUE}$line${NC}"
+        done
+        
+        echo ""
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour afficher les différences
+    git_diff_view() {
+        clear
+        echo -e "${WHITE}=== Diff Git ===${NC}"
+        echo -e "${CYAN}Repository:${NC} $(realpath "$current_dir")"
+        echo ""
+        
+        # Afficher les différences
+        echo -e "${YELLOW}Différences:${NC}"
+        git -C "$current_dir" diff --stat 2>/dev/null
+        
+        echo ""
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour ajouter des fichiers
+    git_add_files() {
+        clear
+        echo -e "${WHITE}=== Git Add ===${NC}"
+        echo -e "${CYAN}Repository:${NC} $(realpath "$current_dir")"
+        echo ""
+        
+        echo -e "${CYAN}Entrez le fichier à ajouter (ou '.' pour tout):${NC} "
+        read -r file_to_add
+        
+        if [[ -n "$file_to_add" ]]; then
+            echo -e "${YELLOW}Ajout en cours...${NC}"
+            if git -C "$current_dir" add "$file_to_add" 2>/dev/null; then
+                echo -e "${GREEN}Fichier(s) ajouté(s) avec succès${NC}"
+            else
+                echo -e "${RED}Erreur lors de l'ajout${NC}"
+            fi
+        else
+            echo -e "${YELLOW}Ajout annulé${NC}"
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour faire un commit
+    git_commit_changes() {
+        clear
+        echo -e "${WHITE}=== Git Commit ===${NC}"
+        echo -e "${CYAN}Repository:${NC} $(realpath "$current_dir")"
+        echo ""
+        
+        echo -e "${CYAN}Message de commit:${NC} "
+        read -r commit_message
+        
+        if [[ -n "$commit_message" ]]; then
+            echo -e "${YELLOW}Commit en cours...${NC}"
+            if git -C "$current_dir" commit -m "$commit_message" 2>/dev/null; then
+                echo -e "${GREEN}Commit effectué avec succès${NC}"
+            else
+                echo -e "${RED}Erreur lors du commit${NC}"
+            fi
+        else
+            echo -e "${YELLOW}Commit annulé${NC}"
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour push
+    git_push_changes() {
+        clear
+        echo -e "${WHITE}=== Git Push ===${NC}"
+        echo -e "${CYAN}Repository:${NC} $(realpath "$current_dir")"
+        echo ""
+        
+        echo -e "${CYAN}Branche distante (défaut: origin):${NC} "
+        read -r remote_branch
+        
+        if [[ -z "$remote_branch" ]]; then
+            remote_branch="origin"
+        fi
+        
+        echo -e "${YELLOW}Push en cours...${NC}"
+        if git -C "$current_dir" push "$remote_branch" 2>/dev/null; then
+            echo -e "${GREEN}Push effectué avec succès${NC}"
+        else
+            echo -e "${RED}Erreur lors du push${NC}"
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour pull
+    git_pull_changes() {
+        clear
+        echo -e "${WHITE}=== Git Pull ===${NC}"
+        echo -e "${CYAN}Repository:${NC} $(realpath "$current_dir")"
+        echo ""
+        
+        echo -e "${CYAN}Branche distante (défaut: origin):${NC} "
+        read -r remote_branch
+        
+        if [[ -z "$remote_branch" ]]; then
+            remote_branch="origin"
+        fi
+        
+        echo -e "${YELLOW}Pull en cours...${NC}"
+        if git -C "$current_dir" pull "$remote_branch" 2>/dev/null; then
+            echo -e "${GREEN}Pull effectué avec succès${NC}"
+        else
+            echo -e "${RED}Erreur lors du pull${NC}"
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour cloner un repository
+    git_clone_repo() {
+        clear
+        echo -e "${WHITE}=== Git Clone ===${NC}"
+        echo -e "${CYAN}Répertoire courant:${NC} $(realpath "$current_dir")"
+        echo ""
+        
+        echo -e "${CYAN}URL du repository à cloner:${NC} "
+        read -r repo_url
+        
+        if [[ -n "$repo_url" ]]; then
+            echo -e "${CYAN}Nom du dossier (optionnel):${NC} "
+            read -r folder_name
+            
+            echo -e "${YELLOW}Clone en cours...${NC}"
+            if [[ -n "$folder_name" ]]; then
+                if git clone "$repo_url" "$folder_name" 2>/dev/null; then
+                    echo -e "${GREEN}Repository cloné avec succès dans: $folder_name${NC}"
+                else
+                    echo -e "${RED}Erreur lors du clone${NC}"
+                fi
+            else
+                if git clone "$repo_url" 2>/dev/null; then
+                    echo -e "${GREEN}Repository cloné avec succès${NC}"
+                else
+                    echo -e "${RED}Erreur lors du clone${NC}"
+                fi
+            fi
+        else
+            echo -e "${YELLOW}Clone annulé${NC}"
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour initialiser un repository
+    git_init_repo() {
+        clear
+        echo -e "${WHITE}=== Git Init ===${NC}"
+        echo -e "${CYAN}Répertoire:${NC} $(realpath "$current_dir")"
+        echo ""
+        
+        echo -e "${RED}ATTENTION: Cela va initialiser un nouveau repository Git dans ce répertoire${NC}"
+        echo -e "${CYAN}Êtes-vous sûr ? (y/n):${NC} "
+        read -r confirmation
+        
+        if [[ "$confirmation" == "y" || "$confirmation" == "Y" ]]; then
+            echo -e "${YELLOW}Initialisation en cours...${NC}"
+            if git -C "$current_dir" init 2>/dev/null; then
+                echo -e "${GREEN}Repository Git initialisé avec succès${NC}"
+            else
+                echo -e "${RED}Erreur lors de l'initialisation${NC}"
+            fi
+        else
+            echo -e "${YELLOW}Initialisation annulée${NC}"
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
     }
     
     # Fonction pour lancer une recherche interactive
@@ -1689,6 +2229,15 @@ interactive_mode() {
                 fi
                 selected_index=0
                 current_page=0
+                ;;
+            'g')  # Gérer le repository Git
+                if [[ -d "$current_dir/.git" ]]; then
+                    git_manager
+                else
+                    echo -e "${RED}Ce répertoire n'est pas un repository Git${NC}"
+                    echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                    read
+                fi
                 ;;
             $'\x7f')  # Backspace (même effet que Entrée sur ..)
                 if [[ ${#items[@]} -gt 0 ]]; then
