@@ -1751,7 +1751,7 @@ interactive_mode() {
         fi
         
         # Définir les options du menu SSH
-        local ssh_options=("Vers machine distante" "Depuis machine distante" "Gérer les connexions SSH")
+        local ssh_options=("Vers machine distante" "Depuis machine distante" "Générer commande SCP" "Gérer les connexions SSH")
         local selected_option=0
         
         while true; do
@@ -1813,6 +1813,10 @@ interactive_mode() {
                             ;;
                         "Depuis machine distante")
                             ssh_copy_from_remote "$item_path" "$item_name" "$item_type"
+                            return
+                            ;;
+                        "Générer commande SCP")
+                            ssh_generate_scp_command "$item_path" "$item_name" "$item_type"
                             return
                             ;;
                         "Gérer les connexions SSH")
@@ -1984,27 +1988,6 @@ interactive_mode() {
         local item_name="$2"
         local item_type="$3"
         
-        # Détecter si on est dans une session SSH
-        local current_ssh_connection=""
-        if [[ -n "$SSH_CLIENT" || -n "$SSH_TTY" ]]; then
-            # On est dans une session SSH, détecter la connexion
-            if [[ -n "$SSH_CONNECTION" ]]; then
-                # Extraire l'IP de la connexion SSH (machine source = machine locale)
-                local ssh_ip=$(echo "$SSH_CONNECTION" | awk '{print $1}')
-                # Pour la copie "depuis machine distante", on veut copier depuis la machine locale
-                # (celle qui a initié la connexion SSH) vers la machine distante actuelle
-                current_ssh_connection="$ssh_ip"
-                
-                # Essayer de trouver un nom d'hôte plus convivial
-                if command -v nslookup >/dev/null 2>&1; then
-                    local hostname=$(nslookup "$ssh_ip" 2>/dev/null | grep "name" | tail -1 | awk '{print $4}' | sed 's/\.$//')
-                    if [[ -n "$hostname" ]]; then
-                        current_ssh_connection="$hostname"
-                    fi
-                fi
-            fi
-        fi
-        
         # Charger les connexions SSH configurées
         local ssh_connections=()
         local ssh_config_file="$HOME/.ssh/config"
@@ -2020,122 +2003,97 @@ interactive_mode() {
             done < "$ssh_config_file"
         fi
         
-        # Si on est dans une session SSH, proposer d'utiliser la connexion actuelle
-        if [[ -n "$current_ssh_connection" ]]; then
-            clear
-            echo -e "${WHITE}=== Copie depuis machine distante ===${NC}"
-            echo -e "${CYAN}Élément local:${NC} $item_name"
-            echo -e "${CYAN}Type:${NC} $item_type"
-            echo ""
-            echo -e "${YELLOW}Session SSH détectée:${NC}"
-            echo -e "  ${GREEN}Connexion actuelle:${NC} $current_ssh_connection"
-            echo ""
-            echo -e "${CYAN}Utiliser la connexion SSH actuelle ? (y/n):${NC} "
-            read -r use_current
+        # Si des connexions SSH sont configurées, permettre la navigation
+        if [[ ${#ssh_connections[@]} -gt 0 ]]; then
+            local selected_ssh_index=0
             
-            if [[ "$use_current" == "y" || "$use_current" == "Y" || "$use_current" == "" ]]; then
-                ssh_connection="$current_ssh_connection"
-                echo -e "${GREEN}Utilisation de la connexion actuelle: $ssh_connection${NC}"
-            else
-                # Continuer avec la sélection normale
-                ssh_connection=""
-            fi
-        fi
-        
-        # Si pas de connexion SSH actuelle ou refusée, proposer la sélection
-        if [[ -z "$ssh_connection" ]]; then
-            # Si des connexions SSH sont configurées, permettre la navigation
-            if [[ ${#ssh_connections[@]} -gt 0 ]]; then
-                local selected_ssh_index=0
-                
-                while true; do
-                    clear
-                    echo -e "${WHITE}=== Copie depuis machine distante ===${NC}"
-                    echo -e "${CYAN}Élément local:${NC} $item_name"
-                    echo -e "${CYAN}Type:${NC} $item_type"
-                    echo ""
-                    echo -e "${YELLOW}Connexions SSH disponibles:${NC}"
-                    echo ""
-                    
-                    # Afficher les connexions avec sélection
-                    for ((i=0; i<${#ssh_connections[@]}; i++)); do
-                        local prefix="  "
-                        local color=""
-                        
-                        if [[ $i -eq $selected_ssh_index ]]; then
-                            prefix="> "
-                            color="${WHITE}"
-                        fi
-                        
-                        echo -e "${prefix}${color}${GREEN}[SSH]${NC} ${color}${ssh_connections[$i]}${NC}"
-                    done
-                    
-                    echo ""
-                    echo -e "${YELLOW}Contrôles:${NC}"
-                    echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
-                    echo -e "  ${GREEN}Entrée${NC} : Sélectionner cette connexion"
-                    echo -e "  ${GREEN}m${NC} : Saisie manuelle"
-                    echo -e "  ${GREEN}q${NC} : Annuler"
-                    echo ""
-                    
-                    # Lire la touche
-                    read -rsn1 key
-                    
-                    case "$key" in
-                        $'\e')  # Séquence d'échappement
-                            read -rsn2 key
-                            case "$key" in
-                                '[A')  # Flèche haut
-                                    if [[ $selected_ssh_index -gt 0 ]]; then
-                                        selected_ssh_index=$((selected_ssh_index - 1))
-                                    fi
-                                    ;;
-                                '[B')  # Flèche bas
-                                    if [[ $selected_ssh_index -lt $((${#ssh_connections[@]} - 1)) ]]; then
-                                        selected_ssh_index=$((selected_ssh_index + 1))
-                                    fi
-                                    ;;
-                            esac
-                            ;;
-                        '')  # Entrée
-                            ssh_connection="${ssh_connections[$selected_ssh_index]}"
-                            echo -e "${GREEN}Connexion sélectionnée: $ssh_connection${NC}"
-                            break
-                            ;;
-                        'm')  # Saisie manuelle
-                            echo -e "${CYAN}Connexion SSH (nom d'hôte ou user@host:port):${NC} "
-                            read -r ssh_connection
-                            if [[ -z "$ssh_connection" ]]; then
-                                echo -e "${YELLOW}Copie annulée${NC}"
-                                echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
-                                read
-                                return
-                            fi
-                            break
-                            ;;
-                        'q')  # Quitter
-                            echo -e "${YELLOW}Copie annulée${NC}"
-                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
-                            read
-                            return
-                            ;;
-                    esac
-                done
-            else
+            while true; do
                 clear
                 echo -e "${WHITE}=== Copie depuis machine distante ===${NC}"
                 echo -e "${CYAN}Élément local:${NC} $item_name"
                 echo -e "${CYAN}Type:${NC} $item_type"
                 echo ""
-                echo -e "${CYAN}Connexion SSH (nom d'hôte ou user@host:port):${NC} "
-                read -r ssh_connection
+                echo -e "${YELLOW}Connexions SSH disponibles:${NC}"
+                echo ""
                 
-                if [[ -z "$ssh_connection" ]]; then
-                    echo -e "${YELLOW}Copie annulée${NC}"
-                    echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
-                    read
-                    return
-                fi
+                # Afficher les connexions avec sélection
+                for ((i=0; i<${#ssh_connections[@]}; i++)); do
+                    local prefix="  "
+                    local color=""
+                    
+                    if [[ $i -eq $selected_ssh_index ]]; then
+                        prefix="> "
+                        color="${WHITE}"
+                    fi
+                    
+                    echo -e "${prefix}${color}${GREEN}[SSH]${NC} ${color}${ssh_connections[$i]}${NC}"
+                done
+                
+                echo ""
+                echo -e "${YELLOW}Contrôles:${NC}"
+                echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+                echo -e "  ${GREEN}Entrée${NC} : Sélectionner cette connexion"
+                echo -e "  ${GREEN}m${NC} : Saisie manuelle"
+                echo -e "  ${GREEN}q${NC} : Annuler"
+                echo ""
+                
+                # Lire la touche
+                read -rsn1 key
+                
+                case "$key" in
+                    $'\e')  # Séquence d'échappement
+                        read -rsn2 key
+                        case "$key" in
+                            '[A')  # Flèche haut
+                                if [[ $selected_ssh_index -gt 0 ]]; then
+                                    selected_ssh_index=$((selected_ssh_index - 1))
+                                fi
+                                ;;
+                            '[B')  # Flèche bas
+                                if [[ $selected_ssh_index -lt $((${#ssh_connections[@]} - 1)) ]]; then
+                                    selected_ssh_index=$((selected_ssh_index + 1))
+                                fi
+                                ;;
+                        esac
+                        ;;
+                    '')  # Entrée
+                        ssh_connection="${ssh_connections[$selected_ssh_index]}"
+                        echo -e "${GREEN}Connexion sélectionnée: $ssh_connection${NC}"
+                        break
+                        ;;
+                    'm')  # Saisie manuelle
+                        echo -e "${CYAN}Connexion SSH (nom d'hôte ou user@host:port):${NC} "
+                        read -r ssh_connection
+                        if [[ -z "$ssh_connection" ]]; then
+                            echo -e "${YELLOW}Copie annulée${NC}"
+                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                            read
+                            return
+                        fi
+                        break
+                        ;;
+                    'q')  # Quitter
+                        echo -e "${YELLOW}Copie annulée${NC}"
+                        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                        read
+                        return
+                        ;;
+                esac
+            done
+        else
+            clear
+            echo -e "${WHITE}=== Copie depuis machine distante ===${NC}"
+            echo -e "${CYAN}Élément local:${NC} $item_name"
+            echo -e "${CYAN}Type:${NC} $item_type"
+            echo ""
+            echo -e "${CYAN}Connexion SSH (nom d'hôte ou user@host:port):${NC} "
+            read -r ssh_connection
+            
+            if [[ -z "$ssh_connection" ]]; then
+                echo -e "${YELLOW}Copie annulée${NC}"
+                echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                read
+                return
             fi
         fi
         
@@ -2197,6 +2155,184 @@ interactive_mode() {
         read
     }
     
+    
+    # Fonction pour générer une commande SCP
+    ssh_generate_scp_command() {
+        local item_path="$1"
+        local item_name="$2"
+        local item_type="$3"
+        
+        # Charger les connexions SSH configurées
+        local ssh_connections=()
+        local ssh_config_file="$HOME/.ssh/config"
+        
+        if [[ -f "$ssh_config_file" ]]; then
+            while IFS= read -r line; do
+                if [[ "$line" =~ ^Host[[:space:]]+([^#*[:space:]]+) ]]; then
+                    local host_name="${BASH_REMATCH[1]}"
+                    if [[ "$host_name" != "*" ]]; then
+                        ssh_connections+=("$host_name")
+                    fi
+                fi
+            done < "$ssh_config_file"
+        fi
+        
+        # Si des connexions SSH sont configurées, permettre la navigation
+        if [[ ${#ssh_connections[@]} -gt 0 ]]; then
+            local selected_ssh_index=0
+            
+            while true; do
+                clear
+                echo -e "${WHITE}=== Générer commande SCP ===${NC}"
+                echo -e "${CYAN}Élément:${NC} $item_name"
+                echo -e "${CYAN}Type:${NC} $item_type"
+                echo -e "${CYAN}Chemin:${NC} $item_path"
+                echo ""
+                echo -e "${YELLOW}Connexions SSH disponibles:${NC}"
+                echo ""
+                
+                # Afficher les connexions avec sélection
+                for ((i=0; i<${#ssh_connections[@]}; i++)); do
+                    local prefix="  "
+                    local color=""
+                    
+                    if [[ $i -eq $selected_ssh_index ]]; then
+                        prefix="> "
+                        color="${WHITE}"
+                    fi
+                    
+                    echo -e "${prefix}${color}${GREEN}[SSH]${NC} ${color}${ssh_connections[$i]}${NC}"
+                done
+                
+                echo ""
+                echo -e "${YELLOW}Contrôles:${NC}"
+                echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+                echo -e "  ${GREEN}Entrée${NC} : Sélectionner cette connexion"
+                echo -e "  ${GREEN}m${NC} : Saisie manuelle"
+                echo -e "  ${GREEN}q${NC} : Annuler"
+                echo ""
+                
+                # Lire la touche
+                read -rsn1 key
+                
+                case "$key" in
+                    $'\e')  # Séquence d'échappement
+                        read -rsn2 key
+                        case "$key" in
+                            '[A')  # Flèche haut
+                                if [[ $selected_ssh_index -gt 0 ]]; then
+                                    selected_ssh_index=$((selected_ssh_index - 1))
+                                fi
+                                ;;
+                            '[B')  # Flèche bas
+                                if [[ $selected_ssh_index -lt $((${#ssh_connections[@]} - 1)) ]]; then
+                                    selected_ssh_index=$((selected_ssh_index + 1))
+                                fi
+                                ;;
+                        esac
+                        ;;
+                    '')  # Entrée
+                        ssh_connection="${ssh_connections[$selected_ssh_index]}"
+                        echo -e "${GREEN}Connexion sélectionnée: $ssh_connection${NC}"
+                        break
+                        ;;
+                    'm')  # Saisie manuelle
+                        echo -e "${CYAN}Connexion SSH (nom d'hôte ou user@host:port):${NC} "
+                        read -r ssh_connection
+                        if [[ -z "$ssh_connection" ]]; then
+                            echo -e "${YELLOW}Génération annulée${NC}"
+                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                            read
+                            return
+                        fi
+                        break
+                        ;;
+                    'q')  # Quitter
+                        return
+                        ;;
+                esac
+            done
+        else
+            clear
+            echo -e "${WHITE}=== Générer commande SCP ===${NC}"
+            echo -e "${CYAN}Élément:${NC} $item_name"
+            echo -e "${CYAN}Type:${NC} $item_type"
+            echo -e "${CYAN}Chemin:${NC} $item_path"
+            echo ""
+            echo -e "${CYAN}Connexion SSH (nom d'hôte ou user@host:port):${NC} "
+            read -r ssh_connection
+            
+            if [[ -z "$ssh_connection" ]]; then
+                echo -e "${YELLOW}Génération annulée${NC}"
+                echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                read
+                return
+            fi
+        fi
+        
+        # Demander le répertoire de destination
+        echo -e "${CYAN}Répertoire de destination sur la machine distante:${NC} "
+        read -r remote_path
+        
+        if [[ -z "$remote_path" ]]; then
+            remote_path="~"
+        fi
+        
+        # Générer les commandes SCP
+        clear
+        echo -e "${WHITE}=== Commandes SCP générées ===${NC}"
+        echo -e "${CYAN}Élément:${NC} $item_name"
+        echo -e "${CYAN}Connexion:${NC} $ssh_connection"
+        echo -e "${CYAN}Destination:${NC} $remote_path"
+        echo ""
+        
+        echo -e "${YELLOW}=== Copie VERS la machine distante ===${NC}"
+        echo -e "${GREEN}Commande à exécuter sur votre machine locale:${NC}"
+        echo ""
+        
+        if [[ "$item_type" == "dir" ]]; then
+            echo -e "${WHITE}scp -r \"$item_path\" $ssh_connection:$remote_path/${NC}"
+        else
+            echo -e "${WHITE}scp \"$item_path\" $ssh_connection:$remote_path/${NC}"
+        fi
+        
+        echo ""
+        echo -e "${YELLOW}=== Copie DEPUIS la machine distante ===${NC}"
+        echo -e "${GREEN}Commande à exécuter sur votre machine locale:${NC}"
+        echo ""
+        
+        if [[ "$item_type" == "dir" ]]; then
+            echo -e "${WHITE}scp -r $ssh_connection:$remote_path/$item_name .${NC}"
+        else
+            echo -e "${WHITE}scp $ssh_connection:$remote_path/$item_name .${NC}"
+        fi
+        
+        echo ""
+        echo -e "${YELLOW}=== Commandes alternatives avec rsync ===${NC}"
+        echo -e "${GREEN}Vers machine distante:${NC}"
+        if [[ "$item_type" == "dir" ]]; then
+            echo -e "${WHITE}rsync -avz \"$item_path/\" $ssh_connection:$remote_path/$item_name/${NC}"
+        else
+            echo -e "${WHITE}rsync -avz \"$item_path\" $ssh_connection:$remote_path/${NC}"
+        fi
+        
+        echo ""
+        echo -e "${GREEN}Depuis machine distante:${NC}"
+        if [[ "$item_type" == "dir" ]]; then
+            echo -e "${WHITE}rsync -avz $ssh_connection:$remote_path/$item_name/ ./$item_name/${NC}"
+        else
+            echo -e "${WHITE}rsync -avz $ssh_connection:$remote_path/$item_name .${NC}"
+        fi
+        
+        echo ""
+        echo -e "${YELLOW}Instructions:${NC}"
+        echo -e "  • Copiez la commande appropriée"
+        echo -e "  • Exécutez-la sur votre machine locale"
+        echo -e "  • Assurez-vous que la connexion SSH fonctionne"
+        echo ""
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
     
     # Fonction pour gérer les connexions SSH
     ssh_manage_connections() {
