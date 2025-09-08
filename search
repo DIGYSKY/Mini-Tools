@@ -866,13 +866,18 @@ interactive_mode() {
                 echo ""
                 echo -e "${GREEN}Répertoire sélectionné: $current_dir${NC}"
                 echo -e "${YELLOW}Changement de répertoire...${NC}"
+                
                 # Créer un script qui sera exécuté par le shell parent
                 local temp_script=$(mktemp)
-                echo "cd \"$current_dir\"" > "$temp_script"
-                echo "echo -e \"${GREEN}Vous êtes maintenant dans: \$(pwd)${NC}\"" >> "$temp_script"
-                echo "rm -f \"$temp_script\"" >> "$temp_script"
+                cat > "$temp_script" << EOF
+#!/bin/bash
+cd "$current_dir"
+echo -e "\${GREEN}Vous êtes maintenant dans: \$(pwd)\${NC}"
+rm -f "$temp_script"
+EOF
+                
                 # Exécuter le script dans le shell parent
-                exec bash -c "source \"$temp_script\""
+                exec bash "$temp_script"
                 ;;
             'h')  # Basculer les fichiers cachés
                 if [[ "$SHOW_HIDDEN" == true ]]; then
