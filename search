@@ -422,7 +422,7 @@ main() {
                 SHOW_HIDDEN=true
                 shift
                 ;;
-            -mdh  --max-depth)
+            -mdh | --max-depth)
                 MAX_DEPTH="$2"
                 shift 2
                 ;;
