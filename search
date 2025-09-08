@@ -437,6 +437,7 @@ interactive_mode() {
         echo -e "  ${GREEN}Entrée${NC} : Entrer dans le dossier / Ouvrir le fichier"
         echo -e "  ${GREEN}Backspace${NC} : Aller au répertoire parent"
         echo -e "  ${GREEN}/${NC} : Lancer une recherche"
+        echo -e "  ${GREEN}m${NC} : Menu contextuel (renommer, supprimer, etc.)"
         echo -e "  ${GREEN}s${NC} : Sélectionner ce répertoire"
         echo -e "  ${GREEN}h${NC} : Basculer les fichiers cachés"
         echo -e "  ${GREEN}←/→${NC} : Page précédente/suivante"
@@ -556,6 +557,789 @@ interactive_mode() {
         SEARCH_SIZES=("${sizes[@]}")
         SEARCH_MODIFIED=("${modified_dates[@]}")
         SEARCH_CREATED=("${created_dates[@]}")
+    }
+    
+    # Fonction pour le menu contextuel
+    context_menu() {
+        if [[ ${#items[@]} -eq 0 ]]; then
+            echo -e "${RED}Aucun élément sélectionné${NC}"
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        local selected_item="${items[$selected_index]}"
+        local selected_type="${item_types[$selected_index]}"
+        local selected_path="$current_dir/$selected_item"
+        
+        # Gérer le répertoire parent différemment
+        if [[ "$selected_item" == ".." ]]; then
+            # Définir les options limitées pour le répertoire parent
+            local parent_options=("Afficher détails" "Créer fichier" "Créer dossier")
+            local selected_option=0
+            
+            while true; do
+                clear
+                echo -e "${WHITE}=== Menu Contextuel - Répertoire Parent ===${NC}"
+                echo -e "${CYAN}Élément:${NC} $selected_item"
+                echo -e "${CYAN}Type:${NC} $selected_type"
+                echo -e "${CYAN}Chemin:${NC} $selected_path"
+                echo ""
+                echo -e "${YELLOW}Actions disponibles:${NC}"
+                echo ""
+                
+                # Afficher les options avec sélection
+                for ((i=0; i<${#parent_options[@]}; i++)); do
+                    local prefix="  "
+                    local color=""
+                    
+                    if [[ $i -eq $selected_option ]]; then
+                        prefix="> "
+                        color="${WHITE}"
+                    fi
+                    
+                    echo -e "${prefix}${color}${GREEN}[ACTION]${NC} ${color}${parent_options[$i]}${NC}"
+                done
+                
+                echo ""
+                echo -e "${YELLOW}Contrôles:${NC}"
+                echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+                echo -e "  ${GREEN}Entrée${NC} : Sélectionner"
+                echo -e "  ${GREEN}q${NC} : Retour"
+                echo ""
+                
+                # Lire la touche
+                read -rsn1 key
+                
+                case "$key" in
+                    $'\e')  # Séquence d'échappement
+                        read -rsn2 key
+                        case "$key" in
+                            '[A')  # Flèche haut
+                                if [[ $selected_option -gt 0 ]]; then
+                                    selected_option=$((selected_option - 1))
+                                fi
+                                ;;
+                            '[B')  # Flèche bas
+                                if [[ $selected_option -lt $((${#parent_options[@]} - 1)) ]]; then
+                                    selected_option=$((selected_option + 1))
+                                fi
+                                ;;
+                        esac
+                        ;;
+                    '')  # Entrée
+                        local chosen_action="${parent_options[$selected_option]}"
+                        
+                        case "$chosen_action" in
+                            "Afficher détails")
+                                show_item_details "$selected_path" "$selected_type"
+                                ;;
+                            "Créer fichier")
+                                create_file "$current_dir"
+                                ;;
+                            "Créer dossier")
+                                create_directory "$current_dir"
+                                ;;
+                        esac
+                        return
+                        ;;
+                    'q')  # Quitter
+                        return
+                        ;;
+                esac
+            done
+        fi
+        
+        # Définir les options du menu
+        local menu_options=("Afficher détails" "Renommer" "Supprimer" "Déplacer" "Créer fichier" "Créer dossier")
+        local selected_option=0
+        
+        while true; do
+            clear
+            echo -e "${WHITE}=== Menu Contextuel ===${NC}"
+            echo -e "${CYAN}Élément:${NC} $selected_item"
+            echo -e "${CYAN}Type:${NC} $selected_type"
+            echo -e "${CYAN}Chemin:${NC} $selected_path"
+            echo ""
+            echo -e "${YELLOW}Actions disponibles:${NC}"
+            echo ""
+            
+            # Afficher les options avec sélection
+            for ((i=0; i<${#menu_options[@]}; i++)); do
+                local prefix="  "
+                local color=""
+                
+                if [[ $i -eq $selected_option ]]; then
+                    prefix="> "
+                    color="${WHITE}"
+                fi
+                
+                echo -e "${prefix}${color}${GREEN}[ACTION]${NC} ${color}${menu_options[$i]}${NC}"
+            done
+            
+            echo ""
+            echo -e "${YELLOW}Contrôles:${NC}"
+            echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+            echo -e "  ${GREEN}Entrée${NC} : Sélectionner"
+            echo -e "  ${GREEN}q${NC} : Retour"
+            echo ""
+            
+            # Lire la touche
+            read -rsn1 key
+            
+            case "$key" in
+                $'\e')  # Séquence d'échappement
+                    read -rsn2 key
+                    case "$key" in
+                        '[A')  # Flèche haut
+                            if [[ $selected_option -gt 0 ]]; then
+                                selected_option=$((selected_option - 1))
+                            fi
+                            ;;
+                        '[B')  # Flèche bas
+                            if [[ $selected_option -lt $((${#menu_options[@]} - 1)) ]]; then
+                                selected_option=$((selected_option + 1))
+                            fi
+                            ;;
+                    esac
+                    ;;
+                '')  # Entrée
+                    local chosen_action="${menu_options[$selected_option]}"
+                    
+                    case "$chosen_action" in
+                        "Afficher détails")
+                            show_item_details "$selected_path" "$selected_type"
+                            ;;
+                        "Renommer")
+                            rename_item "$selected_path" "$selected_item"
+                            ;;
+                        "Supprimer")
+                            delete_item "$selected_path" "$selected_item" "$selected_type"
+                            ;;
+                        "Déplacer")
+                            move_item "$selected_path" "$selected_item" "$selected_type"
+                            ;;
+                        "Créer fichier")
+                            create_file "$current_dir"
+                            ;;
+                        "Créer dossier")
+                            create_directory "$current_dir"
+                            ;;
+                    esac
+                    return
+                    ;;
+                'q')  # Quitter
+                    return
+                    ;;
+            esac
+        done
+    }
+    
+    # Fonction pour afficher les détails d'un élément
+    show_item_details() {
+        local item_path="$1"
+        local item_type="$2"
+        
+        clear
+        echo -e "${WHITE}=== Détails de l'élément ===${NC}"
+        echo -e "${CYAN}Chemin:${NC} $item_path"
+        echo -e "${CYAN}Type:${NC} $item_type"
+        echo ""
+        
+        # Informations de base
+        echo -e "${YELLOW}=== Informations de base ===${NC}"
+        echo -e "  ${GREEN}Nom:${NC} $(basename "$item_path")"
+        echo -e "  ${GREEN}Chemin absolu:${NC} $(realpath "$item_path" 2>/dev/null || echo "$item_path")"
+        echo -e "  ${GREEN}Chemin relatif:${NC} $(realpath --relative-to="$(pwd)" "$item_path" 2>/dev/null || echo "N/A")"
+        
+        # Informations de taille
+        if [[ "$item_type" == "dir" ]]; then
+            echo -e "  ${GREEN}Taille (du):${NC} $(du -sh "$item_path" 2>/dev/null | cut -f1)"
+            echo -e "  ${GREEN}Taille (ls):${NC} $(ls -ld "$item_path" 2>/dev/null | awk '{print $5}')"
+            echo -e "  ${GREEN}Éléments totaux:${NC} $(find "$item_path" -maxdepth 1 | wc -l | tr -d ' ') fichiers/dossiers"
+            echo -e "  ${GREEN}Fichiers:${NC} $(find "$item_path" -maxdepth 1 -type f | wc -l | tr -d ' ') fichiers"
+            echo -e "  ${GREEN}Dossiers:${NC} $(find "$item_path" -maxdepth 1 -type d | wc -l | tr -d ' ') dossiers"
+        else
+            echo -e "  ${GREEN}Taille:${NC} $(ls -lh "$item_path" 2>/dev/null | awk '{print $5}')"
+            echo -e "  ${GREEN}Taille en octets:${NC} $(stat -f%z "$item_path" 2>/dev/null || stat -c%s "$item_path" 2>/dev/null || echo "N/A") octets"
+            echo -e "  ${GREEN}Type MIME:${NC} $(file -b --mime-type "$item_path" 2>/dev/null || echo "N/A")"
+            echo -e "  ${GREEN}Type détaillé:${NC} $(file "$item_path" 2>/dev/null | cut -d: -f2- | sed 's/^ *//')"
+        fi
+        
+        # Informations de dates
+        echo ""
+        echo -e "${YELLOW}=== Informations de dates ===${NC}"
+        local stat_info=$(stat "$item_path" 2>/dev/null)
+        if [[ -n "$stat_info" ]]; then
+            # macOS
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                echo -e "  ${GREEN}Créé:${NC} $(stat -f%SB "$item_path" 2>/dev/null || echo "N/A")"
+                echo -e "  ${GREEN}Modifié:${NC} $(stat -f%Sm "$item_path" 2>/dev/null || echo "N/A")"
+                echo -e "  ${GREEN}Accédé:${NC} $(stat -f%Sa "$item_path" 2>/dev/null || echo "N/A")"
+                echo -e "  ${GREEN}Changé:${NC} $(stat -f%Sc "$item_path" 2>/dev/null || echo "N/A")"
+            else
+                # Linux
+                echo -e "  ${GREEN}Créé:${NC} $(stat -c%w "$item_path" 2>/dev/null || echo "N/A")"
+                echo -e "  ${GREEN}Modifié:${NC} $(stat -c%y "$item_path" 2>/dev/null || echo "N/A")"
+                echo -e "  ${GREEN}Accédé:${NC} $(stat -c%x "$item_path" 2>/dev/null || echo "N/A")"
+                echo -e "  ${GREEN}Changé:${NC} $(stat -c%z "$item_path" 2>/dev/null || echo "N/A")"
+            fi
+        else
+            echo -e "  ${GREEN}Modifié (ls):${NC} $(ls -l "$item_path" 2>/dev/null | awk '{print $6, $7, $8}')"
+        fi
+        
+        # Informations de permissions et propriétaire
+        echo ""
+        echo -e "${YELLOW}=== Permissions et propriétaire ===${NC}"
+        local ls_info=$(ls -l "$item_path" 2>/dev/null)
+        if [[ -n "$ls_info" ]]; then
+            echo -e "  ${GREEN}Permissions:${NC} $(echo "$ls_info" | awk '{print $1}')"
+            echo -e "  ${GREEN}Propriétaire:${NC} $(echo "$ls_info" | awk '{print $3":"$4}')"
+            echo -e "  ${GREEN}UID:GID:${NC} $(stat -f%u:%g "$item_path" 2>/dev/null || stat -c%u:%g "$item_path" 2>/dev/null || echo "N/A")"
+            
+            # Permissions détaillées
+            local perms=$(echo "$ls_info" | awk '{print $1}')
+            if [[ -n "$perms" ]]; then
+                echo -e "  ${GREEN}Lecture:${NC} $([ "${perms:1:3}" = "r--" ] || [ "${perms:1:3}" = "r-x" ] || [ "${perms:1:3}" = "rw-" ] || [ "${perms:1:3}" = "rwx" ] && echo "Oui" || echo "Non")"
+                echo -e "  ${GREEN}Écriture:${NC} $([ "${perms:2:3}" = "-w-" ] || [ "${perms:2:3}" = "rw-" ] || [ "${perms:2:3}" = "-wx" ] || [ "${perms:2:3}" = "rwx" ] && echo "Oui" || echo "Non")"
+                echo -e "  ${GREEN}Exécution:${NC} $([ "${perms:3:3}" = "--x" ] || [ "${perms:3:3}" = "r-x" ] || [ "${perms:3:3}" = "-wx" ] || [ "${perms:3:3}" = "rwx" ] && echo "Oui" || echo "Non")"
+            fi
+        fi
+        
+        # Informations système
+        echo ""
+        echo -e "${YELLOW}=== Informations système ===${NC}"
+        echo -e "  ${GREEN}Inode:${NC} $(stat -f%i "$item_path" 2>/dev/null || stat -c%i "$item_path" 2>/dev/null || echo "N/A")"
+        echo -e "  ${GREEN}Liens:${NC} $(stat -f%l "$item_path" 2>/dev/null || stat -c%h "$item_path" 2>/dev/null || echo "N/A")"
+        echo -e "  ${GREEN}Blocs:${NC} $(stat -f%b "$item_path" 2>/dev/null || stat -c%b "$item_path" 2>/dev/null || echo "N/A")"
+        echo -e "  ${GREEN}Taille de bloc:${NC} $(stat -f%k "$item_path" 2>/dev/null || stat -c%B "$item_path" 2>/dev/null || echo "N/A") octets"
+        
+        # Informations spécifiques aux fichiers
+        if [[ "$item_type" == "file" ]]; then
+            echo ""
+            echo -e "${YELLOW}=== Informations du fichier ===${NC}"
+            
+            # Lignes et caractères
+            if [[ -r "$item_path" ]]; then
+                echo -e "  ${GREEN}Lignes:${NC} $(wc -l < "$item_path" 2>/dev/null || echo "N/A")"
+                echo -e "  ${GREEN}Mots:${NC} $(wc -w < "$item_path" 2>/dev/null || echo "N/A")"
+                echo -e "  ${GREEN}Caractères:${NC} $(wc -c < "$item_path" 2>/dev/null || echo "N/A")"
+                echo -e "  ${GREEN}Caractères (sans espaces):${NC} $(wc -m < "$item_path" 2>/dev/null || echo "N/A")"
+            fi
+            
+            # Hash du fichier
+            if command -v md5sum >/dev/null 2>&1; then
+                echo -e "  ${GREEN}MD5:${NC} $(md5sum "$item_path" 2>/dev/null | cut -d' ' -f1 || echo "N/A")"
+            elif command -v md5 >/dev/null 2>&1; then
+                echo -e "  ${GREEN}MD5:${NC} $(md5 -q "$item_path" 2>/dev/null || echo "N/A")"
+            fi
+            
+            if command -v sha256sum >/dev/null 2>&1; then
+                echo -e "  ${GREEN}SHA256:${NC} $(sha256sum "$item_path" 2>/dev/null | cut -d' ' -f1 || echo "N/A")"
+            elif command -v shasum >/dev/null 2>&1; then
+                echo -e "  ${GREEN}SHA256:${NC} $(shasum -a 256 "$item_path" 2>/dev/null | cut -d' ' -f1 || echo "N/A")"
+            fi
+            
+            # Encodage (si disponible)
+            if command -v file >/dev/null 2>&1; then
+                local encoding=$(file -b --mime-encoding "$item_path" 2>/dev/null)
+                if [[ -n "$encoding" && "$encoding" != "binary" ]]; then
+                    echo -e "  ${GREEN}Encodage:${NC} $encoding"
+                fi
+            fi
+        fi
+        
+        # Informations spécifiques aux dossiers
+        if [[ "$item_type" == "dir" ]]; then
+            echo ""
+            echo -e "${YELLOW}=== Informations du dossier ===${NC}"
+            
+            # Contenu du dossier
+            local dir_contents=$(ls -1A "$item_path" 2>/dev/null | head -10)
+            if [[ -n "$dir_contents" ]]; then
+                echo -e "  ${GREEN}Premiers éléments:${NC}"
+                echo "$dir_contents" | while read -r item; do
+                    if [[ -d "$item_path/$item" ]]; then
+                        echo -e "    ${BLUE}[DIR]${NC} $item"
+                    else
+                        echo -e "    ${GREEN}[FILE]${NC} $item"
+                    fi
+                done
+                local total_items=$(ls -1A "$item_path" 2>/dev/null | wc -l | tr -d ' ')
+                if [[ $total_items -gt 10 ]]; then
+                    echo -e "    ${PURPLE}... et $((total_items - 10)) autres éléments${NC}"
+                fi
+            fi
+        fi
+        
+        echo ""
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour renommer un élément
+    rename_item() {
+        local item_path="$1"
+        local current_name="$2"
+        
+        clear
+        echo -e "${WHITE}=== Renommer ===${NC}"
+        echo -e "${CYAN}Élément actuel:${NC} $current_name"
+        echo -e "${CYAN}Chemin:${NC} $item_path"
+        echo ""
+        echo -e "${CYAN}Nouveau nom:${NC} "
+        read -r new_name
+        
+        if [[ -n "$new_name" && "$new_name" != "$current_name" ]]; then
+            local new_path="$current_dir/$new_name"
+            if [[ -e "$new_path" ]]; then
+                echo -e "${RED}Erreur: Un élément avec ce nom existe déjà${NC}"
+            else
+                if mv "$item_path" "$new_path" 2>/dev/null; then
+                    echo -e "${GREEN}Élément renommé avec succès${NC}"
+                else
+                    echo -e "${RED}Erreur lors du renommage${NC}"
+                fi
+            fi
+        else
+            echo -e "${YELLOW}Renommage annulé${NC}"
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour supprimer un élément
+    delete_item() {
+        local item_path="$1"
+        local item_name="$2"
+        local item_type="$3"
+        
+        clear
+        echo -e "${WHITE}=== Supprimer ===${NC}"
+        echo -e "${CYAN}Élément:${NC} $item_name"
+        echo -e "${CYAN}Type:${NC} $item_type"
+        echo -e "${CYAN}Chemin:${NC} $item_path"
+        echo ""
+        echo -e "${RED}ATTENTION: Cette action est irréversible !${NC}"
+        echo ""
+        echo -e "${CYAN}Êtes-vous sûr de vouloir supprimer cet élément ? (y/n):${NC} "
+        read -r confirmation
+        
+        if [[ "$confirmation" == "y" || "$confirmation" == "n" ]]; then
+            if [[ "$item_type" == "dir" ]]; then
+                if rm -rf "$item_path" 2>/dev/null; then
+                    echo -e "${GREEN}Dossier supprimé avec succès${NC}"
+                else
+                    echo -e "${RED}Erreur lors de la suppression du dossier${NC}"
+                fi
+            else
+                if rm "$item_path" 2>/dev/null; then
+                    echo -e "${GREEN}Fichier supprimé avec succès${NC}"
+                else
+                    echo -e "${RED}Erreur lors de la suppression du fichier${NC}"
+                fi
+            fi
+        else
+            echo -e "${YELLOW}Suppression annulée${NC}"
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour déplacer un élément
+    move_item() {
+        local item_path="$1"
+        local item_name="$2"
+        local item_type="$3"
+        
+        # Définir les options du menu
+        local move_options=("Saisir le chemin manuellement" "Naviguer pour sélectionner")
+        local selected_option=0
+        
+        while true; do
+            clear
+            echo -e "${WHITE}=== Déplacer ===${NC}"
+            echo -e "${CYAN}Élément:${NC} $item_name"
+            echo -e "${CYAN}Type:${NC} $item_type"
+            echo -e "${CYAN}Chemin actuel:${NC} $item_path"
+            echo ""
+            echo -e "${YELLOW}Choisissez la méthode de sélection:${NC}"
+            echo ""
+            
+            # Afficher les options avec sélection
+            for ((i=0; i<${#move_options[@]}; i++)); do
+                local prefix="  "
+                local color=""
+                
+                if [[ $i -eq $selected_option ]]; then
+                    prefix="> "
+                    color="${WHITE}"
+                fi
+                
+                echo -e "${prefix}${color}${GREEN}[OPTION]${NC} ${color}${move_options[$i]}${NC}"
+            done
+            
+            echo ""
+            echo -e "${YELLOW}Contrôles:${NC}"
+            echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+            echo -e "  ${GREEN}Entrée${NC} : Sélectionner"
+            echo -e "  ${GREEN}q${NC} : Annuler"
+            echo ""
+            
+            # Lire la touche
+            read -rsn1 key
+            
+            case "$key" in
+                $'\e')  # Séquence d'échappement
+                    read -rsn2 key
+                    case "$key" in
+                        '[A')  # Flèche haut
+                            if [[ $selected_option -gt 0 ]]; then
+                                selected_option=$((selected_option - 1))
+                            fi
+                            ;;
+                        '[B')  # Flèche bas
+                            if [[ $selected_option -lt $((${#move_options[@]} - 1)) ]]; then
+                                selected_option=$((selected_option + 1))
+                            fi
+                            ;;
+                    esac
+                    ;;
+                '')  # Entrée
+                    local chosen_option="${move_options[$selected_option]}"
+                    
+                    case "$chosen_option" in
+                        "Saisir le chemin manuellement")
+                            move_item_manual "$item_path" "$item_name" "$item_type"
+                            return
+                            ;;
+                        "Naviguer pour sélectionner")
+                            move_item_navigate "$item_path" "$item_name" "$item_type"
+                            return
+                            ;;
+                    esac
+                    ;;
+                'q')  # Quitter
+                    echo -e "${YELLOW}Déplacement annulé${NC}"
+                    echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                    read
+                    return
+                    ;;
+            esac
+        done
+    }
+    
+    # Fonction pour déplacer avec saisie manuelle
+    move_item_manual() {
+        local item_path="$1"
+        local item_name="$2"
+        local item_type="$3"
+        
+        clear
+        echo -e "${WHITE}=== Déplacer - Saisie manuelle ===${NC}"
+        echo -e "${CYAN}Élément:${NC} $item_name"
+        echo -e "${CYAN}Chemin actuel:${NC} $item_path"
+        echo ""
+        echo -e "${CYAN}Chemin de destination:${NC} "
+        read -r dest_path
+        
+        if [[ -n "$dest_path" ]]; then
+            # Convertir le chemin relatif en absolu si nécessaire
+            if [[ "$dest_path" != /* ]]; then
+                dest_path="$current_dir/$dest_path"
+            fi
+            
+            if [[ -d "$dest_path" ]]; then
+                local dest_file="$dest_path/$item_name"
+                if [[ -e "$dest_file" ]]; then
+                    echo -e "${RED}Erreur: Un élément avec ce nom existe déjà dans la destination${NC}"
+                else
+                    if mv "$item_path" "$dest_path/" 2>/dev/null; then
+                        echo -e "${GREEN}Élément déplacé avec succès vers $dest_path${NC}"
+                    else
+                        echo -e "${RED}Erreur lors du déplacement${NC}"
+                    fi
+                fi
+            else
+                echo -e "${RED}Erreur: Le répertoire de destination n'existe pas${NC}"
+            fi
+        else
+            echo -e "${YELLOW}Déplacement annulé${NC}"
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour déplacer avec navigation
+    move_item_navigate() {
+        local item_path="$1"
+        local item_name="$2"
+        local item_type="$3"
+        local dest_dir="$current_dir"
+        local dest_index=0
+        local dest_page=0
+        local dest_items_per_page=20
+        local dest_items=()
+        local dest_item_types=()
+        
+        # Fonction pour obtenir les éléments du répertoire de destination
+        get_dest_items() {
+            dest_items=()
+            dest_item_types=()
+            
+            # Ajouter le répertoire parent si on n'est pas à la racine
+            if [[ "$dest_dir" != "/" ]]; then
+                dest_items+=("..")
+                dest_item_types+=("dir")
+            fi
+            
+            # Utiliser ls simple pour la vitesse
+            local ls_cmd="ls -1A \"$dest_dir\""
+            if [[ "$SHOW_HIDDEN" == false ]]; then
+                ls_cmd="ls -1 \"$dest_dir\""
+            fi
+            
+            # Utiliser un fichier temporaire pour éviter les problèmes de sous-shell
+            local temp_file=$(mktemp)
+            eval "$ls_cmd" 2>/dev/null > "$temp_file"
+            
+            while IFS= read -r item; do
+                if [[ -n "$item" ]]; then
+                    dest_items+=("$item")
+                    if [[ -d "$dest_dir/$item" ]]; then
+                        dest_item_types+=("dir")
+                    else
+                        dest_item_types+=("file")
+                    fi
+                fi
+            done < "$temp_file"
+            
+            rm -f "$temp_file"
+        }
+        
+        while true; do
+            get_dest_items
+            clear
+            echo -e "${WHITE}=== Déplacer - Navigation ===${NC}"
+            echo -e "${CYAN}Élément à déplacer:${NC} $item_name"
+            echo -e "${CYAN}Répertoire de destination:${NC} $(realpath "$dest_dir")"
+            echo ""
+            echo -e "${YELLOW}Contrôles:${NC}"
+            echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+            echo -e "  ${GREEN}Entrée${NC} : Entrer dans le dossier"
+            echo -e "  ${GREEN}c${NC} : Confirmer ce répertoire"
+            echo -e "  ${GREEN}←/→${NC} : Page précédente/suivante"
+            echo -e "  ${GREEN}q${NC} : Annuler"
+            echo ""
+            
+            # Calculer les indices de pagination
+            local total_items=${#dest_items[@]}
+            local total_pages=$(( (total_items + dest_items_per_page - 1) / dest_items_per_page ))
+            local start_index=$((dest_page * dest_items_per_page))
+            local end_index=$((start_index + dest_items_per_page - 1))
+            
+            # Ajuster l'index sélectionné si nécessaire
+            if [[ $dest_index -ge $total_items ]]; then
+                dest_index=$((total_items - 1))
+            fi
+            if [[ $dest_index -lt 0 ]]; then
+                dest_index=0
+            fi
+            
+            # Ajuster la page courante si nécessaire
+            local selected_page=$((dest_index / dest_items_per_page))
+            if [[ $selected_page -ne $dest_page ]]; then
+                dest_page=$selected_page
+                start_index=$((dest_page * dest_items_per_page))
+                end_index=$((start_index + dest_items_per_page - 1))
+            fi
+            
+            # Afficher les éléments de la page courante
+            for ((i=start_index; i<=end_index && i<total_items; i++)); do
+                local item="${dest_items[$i]}"
+                local type="${dest_item_types[$i]}"
+                local prefix="  "
+                local color=""
+                
+                if [[ $i -eq $dest_index ]]; then
+                    prefix="> "
+                    color="${WHITE}"
+                fi
+                
+                if [[ "$type" == "dir" ]]; then
+                    echo -e "${prefix}${color}${BLUE}[DIR]${NC} ${color}$item${NC}"
+                else
+                    echo -e "${prefix}${color}${GREEN}[FILE]${NC} ${color}$item${NC}"
+                fi
+            done
+            
+            # Afficher les informations de pagination
+            echo ""
+            echo -e "${PURPLE}Page $((dest_page + 1))/$total_pages - Élément $((dest_index + 1))/$total_items${NC}"
+            
+            # Lire la touche
+            read -rsn1 key
+            
+            case "$key" in
+                $'\x1b')  # Séquence d'échappement (flèches)
+                    read -rsn2 key
+                    case "$key" in
+                        '[A')  # Flèche haut
+                            if [[ $dest_index -gt 0 ]]; then
+                                dest_index=$((dest_index - 1))
+                            fi
+                            ;;
+                        '[B')  # Flèche bas
+                            if [[ $dest_index -lt $((total_items - 1)) ]]; then
+                                dest_index=$((dest_index + 1))
+                            fi
+                            ;;
+                        '[C')  # Flèche droite (page suivante)
+                            if [[ $dest_page -lt $((total_pages - 1)) ]]; then
+                                dest_page=$((dest_page + 1))
+                                dest_index=$((dest_page * dest_items_per_page))
+                            fi
+                            ;;
+                        '[D')  # Flèche gauche (page précédente)
+                            if [[ $dest_page -gt 0 ]]; then
+                                dest_page=$((dest_page - 1))
+                                dest_index=$((dest_page * dest_items_per_page))
+                            fi
+                            ;;
+                    esac
+                    ;;
+                '')  # Entrée
+                    if [[ ${#dest_items[@]} -gt 0 ]]; then
+                        local selected_item="${dest_items[$dest_index]}"
+                        local selected_type="${dest_item_types[$dest_index]}"
+                        
+                        if [[ "$selected_type" == "dir" ]]; then
+                            if [[ "$selected_item" == ".." ]]; then
+                                # Navigation vers le répertoire parent
+                                if [[ "$dest_dir" == "/" ]]; then
+                                    # On est déjà à la racine, ne rien faire
+                                    continue
+                                else
+                                    # Obtenir le répertoire parent de manière plus robuste
+                                    if [[ "$dest_dir" == *"/"* ]]; then
+                                        # Enlever le dernier segment du chemin
+                                        dest_dir="${dest_dir%/*}"
+                                        # S'assurer qu'on ne va pas en dessous de la racine
+                                        if [[ -z "$dest_dir" ]]; then
+                                            dest_dir="/"
+                                        fi
+                                    else
+                                        dest_dir="/"
+                                    fi
+                                fi
+                                dest_index=0
+                                dest_page=0
+                            else
+                                # Entrer dans le dossier
+                                if [[ "$dest_dir" == "/" ]]; then
+                                    dest_dir="/$selected_item"
+                                else
+                                    dest_dir="$dest_dir/$selected_item"
+                                fi
+                                dest_index=0
+                                dest_page=0
+                            fi
+                        else
+                            echo -e "${RED}Erreur: Vous devez sélectionner un répertoire${NC}"
+                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                            read
+                        fi
+                    fi
+                    ;;
+                'c')  # Confirmer le déplacement
+                    # Effectuer le déplacement vers le répertoire courant
+                    local dest_file="$dest_dir/$item_name"
+                    if [[ -e "$dest_file" ]]; then
+                        echo -e "${RED}Erreur: Un élément avec ce nom existe déjà dans la destination${NC}"
+                        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                        read
+                    else
+                        if mv "$item_path" "$dest_dir/" 2>/dev/null; then
+                            echo -e "${GREEN}Élément déplacé avec succès vers $dest_dir${NC}"
+                        else
+                            echo -e "${RED}Erreur lors du déplacement${NC}"
+                        fi
+                        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                        read
+                        return
+                    fi
+                    ;;
+                'q')  # Quitter
+                    echo -e "${YELLOW}Déplacement annulé${NC}"
+                    echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                    read
+                    return
+                    ;;
+            esac
+        done
+    }
+    
+    # Fonction pour créer un fichier
+    create_file() {
+        local parent_dir="$1"
+        
+        clear
+        echo -e "${WHITE}=== Créer un fichier ===${NC}"
+        echo -e "${CYAN}Répertoire parent:${NC} $parent_dir"
+        echo ""
+        echo -e "${CYAN}Nom du fichier:${NC} "
+        read -r file_name
+        
+        if [[ -n "$file_name" ]]; then
+            local file_path="$parent_dir/$file_name"
+            if [[ -e "$file_path" ]]; then
+                echo -e "${RED}Erreur: Un fichier avec ce nom existe déjà${NC}"
+            else
+                if touch "$file_path" 2>/dev/null; then
+                    echo -e "${GREEN}Fichier créé avec succès: $file_name${NC}"
+                else
+                    echo -e "${RED}Erreur lors de la création du fichier${NC}"
+                fi
+            fi
+        else
+            echo -e "${YELLOW}Création annulée${NC}"
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour créer un dossier
+    create_directory() {
+        local parent_dir="$1"
+        
+        clear
+        echo -e "${WHITE}=== Créer un dossier ===${NC}"
+        echo -e "${CYAN}Répertoire parent:${NC} $parent_dir"
+        echo ""
+        echo -e "${CYAN}Nom du dossier:${NC} "
+        read -r dir_name
+        
+        if [[ -n "$dir_name" ]]; then
+            local dir_path="$parent_dir/$dir_name"
+            if [[ -e "$dir_path" ]]; then
+                echo -e "${RED}Erreur: Un dossier avec ce nom existe déjà${NC}"
+            else
+                if mkdir "$dir_path" 2>/dev/null; then
+                    echo -e "${GREEN}Dossier créé avec succès: $dir_name${NC}"
+                else
+                    echo -e "${RED}Erreur lors de la création du dossier${NC}"
+                fi
+            fi
+        else
+            echo -e "${YELLOW}Création annulée${NC}"
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
     }
     
     # Fonction pour ouvrir un fichier
@@ -869,6 +1653,9 @@ interactive_mode() {
                 ;;
             '/')  # Recherche
                 launch_search
+                ;;
+            'm')  # Menu contextuel
+                context_menu
                 ;;
             's')  # Sélectionner ce répertoire
                 echo ""
