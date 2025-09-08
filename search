@@ -1984,6 +1984,18 @@ interactive_mode() {
         local item_name="$2"
         local item_type="$3"
         
+        # Détecter si on est dans une session SSH
+        local current_ssh_connection=""
+        if [[ -n "$SSH_CLIENT" || -n "$SSH_TTY" ]]; then
+            # On est dans une session SSH, détecter la connexion
+            if [[ -n "$SSH_CONNECTION" ]]; then
+                # Extraire l'IP de la connexion SSH
+                local ssh_ip=$(echo "$SSH_CONNECTION" | awk '{print $1}')
+                # Essayer de trouver le nom d'hôte correspondant
+                current_ssh_connection=$(hostname -f 2>/dev/null || hostname)
+            fi
+        fi
+        
         # Charger les connexions SSH configurées
         local ssh_connections=()
         local ssh_config_file="$HOME/.ssh/config"
@@ -1999,97 +2011,122 @@ interactive_mode() {
             done < "$ssh_config_file"
         fi
         
-        # Si des connexions SSH sont configurées, permettre la navigation
-        if [[ ${#ssh_connections[@]} -gt 0 ]]; then
-            local selected_ssh_index=0
-            
-            while true; do
-                clear
-                echo -e "${WHITE}=== Copie depuis machine distante ===${NC}"
-                echo -e "${CYAN}Élément local:${NC} $item_name"
-                echo -e "${CYAN}Type:${NC} $item_type"
-                echo ""
-                echo -e "${YELLOW}Connexions SSH disponibles:${NC}"
-                echo ""
-                
-                # Afficher les connexions avec sélection
-                for ((i=0; i<${#ssh_connections[@]}; i++)); do
-                    local prefix="  "
-                    local color=""
-                    
-                    if [[ $i -eq $selected_ssh_index ]]; then
-                        prefix="> "
-                        color="${WHITE}"
-                    fi
-                    
-                    echo -e "${prefix}${color}${GREEN}[SSH]${NC} ${color}${ssh_connections[$i]}${NC}"
-                done
-                
-                echo ""
-                echo -e "${YELLOW}Contrôles:${NC}"
-                echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
-                echo -e "  ${GREEN}Entrée${NC} : Sélectionner cette connexion"
-                echo -e "  ${GREEN}m${NC} : Saisie manuelle"
-                echo -e "  ${GREEN}q${NC} : Annuler"
-                echo ""
-                
-                # Lire la touche
-                read -rsn1 key
-                
-                case "$key" in
-                    $'\e')  # Séquence d'échappement
-                        read -rsn2 key
-                        case "$key" in
-                            '[A')  # Flèche haut
-                                if [[ $selected_ssh_index -gt 0 ]]; then
-                                    selected_ssh_index=$((selected_ssh_index - 1))
-                                fi
-                                ;;
-                            '[B')  # Flèche bas
-                                if [[ $selected_ssh_index -lt $((${#ssh_connections[@]} - 1)) ]]; then
-                                    selected_ssh_index=$((selected_ssh_index + 1))
-                                fi
-                                ;;
-                        esac
-                        ;;
-                    '')  # Entrée
-                        ssh_connection="${ssh_connections[$selected_ssh_index]}"
-                        echo -e "${GREEN}Connexion sélectionnée: $ssh_connection${NC}"
-                        break
-                        ;;
-                    'm')  # Saisie manuelle
-                        echo -e "${CYAN}Connexion SSH (nom d'hôte ou user@host:port):${NC} "
-                        read -r ssh_connection
-                        if [[ -z "$ssh_connection" ]]; then
-                            echo -e "${YELLOW}Copie annulée${NC}"
-                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
-                            read
-                            return
-                        fi
-                        break
-                        ;;
-                    'q')  # Quitter
-                        echo -e "${YELLOW}Copie annulée${NC}"
-                        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
-                        read
-                        return
-                        ;;
-                esac
-            done
-        else
+        # Si on est dans une session SSH, proposer d'utiliser la connexion actuelle
+        if [[ -n "$current_ssh_connection" ]]; then
             clear
             echo -e "${WHITE}=== Copie depuis machine distante ===${NC}"
             echo -e "${CYAN}Élément local:${NC} $item_name"
             echo -e "${CYAN}Type:${NC} $item_type"
             echo ""
-            echo -e "${CYAN}Connexion SSH (nom d'hôte ou user@host:port):${NC} "
-            read -r ssh_connection
+            echo -e "${YELLOW}Session SSH détectée:${NC}"
+            echo -e "  ${GREEN}Connexion actuelle:${NC} $current_ssh_connection"
+            echo ""
+            echo -e "${CYAN}Utiliser la connexion SSH actuelle ? (y/n):${NC} "
+            read -r use_current
             
-            if [[ -z "$ssh_connection" ]]; then
-                echo -e "${YELLOW}Copie annulée${NC}"
-                echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
-                read
-                return
+            if [[ "$use_current" == "y" || "$use_current" == "Y" || "$use_current" == "" ]]; then
+                ssh_connection="$current_ssh_connection"
+                echo -e "${GREEN}Utilisation de la connexion actuelle: $ssh_connection${NC}"
+            else
+                # Continuer avec la sélection normale
+                ssh_connection=""
+            fi
+        fi
+        
+        # Si pas de connexion SSH actuelle ou refusée, proposer la sélection
+        if [[ -z "$ssh_connection" ]]; then
+            # Si des connexions SSH sont configurées, permettre la navigation
+            if [[ ${#ssh_connections[@]} -gt 0 ]]; then
+                local selected_ssh_index=0
+                
+                while true; do
+                    clear
+                    echo -e "${WHITE}=== Copie depuis machine distante ===${NC}"
+                    echo -e "${CYAN}Élément local:${NC} $item_name"
+                    echo -e "${CYAN}Type:${NC} $item_type"
+                    echo ""
+                    echo -e "${YELLOW}Connexions SSH disponibles:${NC}"
+                    echo ""
+                    
+                    # Afficher les connexions avec sélection
+                    for ((i=0; i<${#ssh_connections[@]}; i++)); do
+                        local prefix="  "
+                        local color=""
+                        
+                        if [[ $i -eq $selected_ssh_index ]]; then
+                            prefix="> "
+                            color="${WHITE}"
+                        fi
+                        
+                        echo -e "${prefix}${color}${GREEN}[SSH]${NC} ${color}${ssh_connections[$i]}${NC}"
+                    done
+                    
+                    echo ""
+                    echo -e "${YELLOW}Contrôles:${NC}"
+                    echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+                    echo -e "  ${GREEN}Entrée${NC} : Sélectionner cette connexion"
+                    echo -e "  ${GREEN}m${NC} : Saisie manuelle"
+                    echo -e "  ${GREEN}q${NC} : Annuler"
+                    echo ""
+                    
+                    # Lire la touche
+                    read -rsn1 key
+                    
+                    case "$key" in
+                        $'\e')  # Séquence d'échappement
+                            read -rsn2 key
+                            case "$key" in
+                                '[A')  # Flèche haut
+                                    if [[ $selected_ssh_index -gt 0 ]]; then
+                                        selected_ssh_index=$((selected_ssh_index - 1))
+                                    fi
+                                    ;;
+                                '[B')  # Flèche bas
+                                    if [[ $selected_ssh_index -lt $((${#ssh_connections[@]} - 1)) ]]; then
+                                        selected_ssh_index=$((selected_ssh_index + 1))
+                                    fi
+                                    ;;
+                            esac
+                            ;;
+                        '')  # Entrée
+                            ssh_connection="${ssh_connections[$selected_ssh_index]}"
+                            echo -e "${GREEN}Connexion sélectionnée: $ssh_connection${NC}"
+                            break
+                            ;;
+                        'm')  # Saisie manuelle
+                            echo -e "${CYAN}Connexion SSH (nom d'hôte ou user@host:port):${NC} "
+                            read -r ssh_connection
+                            if [[ -z "$ssh_connection" ]]; then
+                                echo -e "${YELLOW}Copie annulée${NC}"
+                                echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                                read
+                                return
+                            fi
+                            break
+                            ;;
+                        'q')  # Quitter
+                            echo -e "${YELLOW}Copie annulée${NC}"
+                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                            read
+                            return
+                            ;;
+                    esac
+                done
+            else
+                clear
+                echo -e "${WHITE}=== Copie depuis machine distante ===${NC}"
+                echo -e "${CYAN}Élément local:${NC} $item_name"
+                echo -e "${CYAN}Type:${NC} $item_type"
+                echo ""
+                echo -e "${CYAN}Connexion SSH (nom d'hôte ou user@host:port):${NC} "
+                read -r ssh_connection
+                
+                if [[ -z "$ssh_connection" ]]; then
+                    echo -e "${YELLOW}Copie annulée${NC}"
+                    echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                    read
+                    return
+                fi
             fi
         fi
         
