@@ -657,7 +657,12 @@ interactive_mode() {
         fi
         
         # Définir les options du menu selon le type d'élément
-        local menu_options=("Afficher détails" "Renommer" "Supprimer" "Déplacer")
+        local menu_options=("Afficher détails" "Renommer" "Supprimer" "Déplacer" "Copier")
+        
+        # Ajouter l'option SSH si disponible
+        if command -v scp >/dev/null 2>&1 || command -v rsync >/dev/null 2>&1; then
+            menu_options+=("Copier via SSH")
+        fi
         
         # Ajouter les options de compression/décompression
         if [[ "$selected_type" == "dir" ]]; then
@@ -738,6 +743,12 @@ interactive_mode() {
                             ;;
                         "Déplacer")
                             move_item "$selected_path" "$selected_item" "$selected_type"
+                            ;;
+                        "Copier")
+                            copy_item "$selected_path" "$selected_item" "$selected_type"
+                            ;;
+                        "Copier via SSH")
+                            copy_item_ssh "$selected_path" "$selected_item" "$selected_type"
                             ;;
                         "Zipper le dossier")
                             zip_item "$selected_path" "$selected_item" "$selected_type"
@@ -1310,6 +1321,991 @@ interactive_mode() {
             esac
         done
     }
+    
+    # Fonction pour copier un élément
+    copy_item() {
+        local item_path="$1"
+        local item_name="$2"
+        local item_type="$3"
+        
+        # Définir les options du menu de copie
+        local copy_options=("Dupliquer" "Naviguer" "Spécifier le chemin")
+        local selected_option=0
+        
+        while true; do
+            clear
+            echo -e "${WHITE}=== Copier ===${NC}"
+            echo -e "${CYAN}Élément:${NC} $item_name"
+            echo -e "${CYAN}Type:${NC} $item_type"
+            echo -e "${CYAN}Chemin:${NC} $item_path"
+            echo ""
+            echo -e "${YELLOW}Choisissez la méthode de copie:${NC}"
+            echo ""
+            
+            # Afficher les options avec sélection
+            for ((i=0; i<${#copy_options[@]}; i++)); do
+                local prefix="  "
+                local color=""
+                
+                if [[ $i -eq $selected_option ]]; then
+                    prefix="> "
+                    color="${WHITE}"
+                fi
+                
+                echo -e "${prefix}${color}${GREEN}[COPY]${NC} ${color}${copy_options[$i]}${NC}"
+            done
+            
+            echo ""
+            echo -e "${YELLOW}Contrôles:${NC}"
+            echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+            echo -e "  ${GREEN}Entrée${NC} : Sélectionner"
+            echo -e "  ${GREEN}q${NC} : Annuler"
+            echo ""
+            
+            # Lire la touche
+            read -rsn1 key
+            
+            case "$key" in
+                $'\e')  # Séquence d'échappement
+                    read -rsn2 key
+                    case "$key" in
+                        '[A')  # Flèche haut
+                            if [[ $selected_option -gt 0 ]]; then
+                                selected_option=$((selected_option - 1))
+                            fi
+                            ;;
+                        '[B')  # Flèche bas
+                            if [[ $selected_option -lt $((${#copy_options[@]} - 1)) ]]; then
+                                selected_option=$((selected_option + 1))
+                            fi
+                            ;;
+                    esac
+                    ;;
+                '')  # Entrée
+                    local chosen_option="${copy_options[$selected_option]}"
+                    
+                    case "$chosen_option" in
+                        "Dupliquer")
+                            copy_item_duplicate "$item_path" "$item_name" "$item_type"
+                            return
+                            ;;
+                        "Naviguer")
+                            copy_item_navigate "$item_path" "$item_name" "$item_type"
+                            return
+                            ;;
+                        "Spécifier le chemin")
+                            copy_item_manual "$item_path" "$item_name" "$item_type"
+                            return
+                            ;;
+                    esac
+                    ;;
+                'q')  # Quitter
+                    return
+                    ;;
+            esac
+        done
+    }
+    
+    # Fonction pour dupliquer un élément
+    copy_item_duplicate() {
+        local item_path="$1"
+        local item_name="$2"
+        local item_type="$3"
+        
+        clear
+        echo -e "${WHITE}=== Dupliquer ===${NC}"
+        echo -e "${CYAN}Élément:${NC} $item_name"
+        echo -e "${CYAN}Type:${NC} $item_type"
+        echo -e "${CYAN}Chemin:${NC} $item_path"
+        echo ""
+        
+        # Demander le nom de la copie
+        local copy_name="${item_name%.*}_copy"
+        if [[ "$item_type" == "file" && "$item_name" == *.* ]]; then
+            local extension="${item_name##*.}"
+            copy_name="${item_name%.*}_copy.$extension"
+        elif [[ "$item_type" == "dir" ]]; then
+            copy_name="${item_name}_copy"
+        fi
+        
+        echo -e "${CYAN}Nom de la copie (défaut: $copy_name):${NC} "
+        read -r custom_copy_name
+        
+        if [[ -n "$custom_copy_name" ]]; then
+            copy_name="$custom_copy_name"
+        fi
+        
+        local copy_path="$current_dir/$copy_name"
+        
+        # Vérifier si l'élément existe déjà
+        if [[ -e "$copy_path" ]]; then
+            echo -e "${RED}Erreur: Un élément avec ce nom existe déjà${NC}"
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        echo -e "${YELLOW}Copie en cours...${NC}"
+        
+        # Effectuer la copie
+        if [[ "$item_type" == "dir" ]]; then
+            if cp -r "$item_path" "$copy_path" 2>/dev/null; then
+                echo -e "${GREEN}Dossier dupliqué avec succès: $copy_name${NC}"
+            else
+                echo -e "${RED}Erreur lors de la duplication du dossier${NC}"
+            fi
+        else
+            if cp "$item_path" "$copy_path" 2>/dev/null; then
+                echo -e "${GREEN}Fichier dupliqué avec succès: $copy_name${NC}"
+            else
+                echo -e "${RED}Erreur lors de la duplication du fichier${NC}"
+            fi
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour copier avec navigation
+    copy_item_navigate() {
+        local item_path="$1"
+        local item_name="$2"
+        local item_type="$3"
+        local dest_dir="$current_dir"
+        local dest_index=0
+        local dest_page=0
+        local dest_items_per_page=20
+        local dest_items=()
+        local dest_item_types=()
+        
+        # Fonction pour obtenir les éléments du répertoire de destination
+        get_dest_items() {
+            dest_items=()
+            dest_item_types=()
+            
+            # Ajouter le répertoire parent si on n'est pas à la racine
+            if [[ "$dest_dir" != "/" ]]; then
+                dest_items+=("..")
+                dest_item_types+=("dir")
+            fi
+            
+            # Utiliser ls simple pour la vitesse
+            local ls_cmd="ls -1A \"$dest_dir\""
+            if [[ "$SHOW_HIDDEN" == false ]]; then
+                ls_cmd="ls -1 \"$dest_dir\""
+            fi
+            
+            # Utiliser un fichier temporaire pour éviter les problèmes de sous-shell
+            local temp_file=$(mktemp)
+            eval "$ls_cmd" 2>/dev/null > "$temp_file"
+            
+            while IFS= read -r item; do
+                if [[ -n "$item" ]]; then
+                    dest_items+=("$item")
+                    if [[ -d "$dest_dir/$item" ]]; then
+                        dest_item_types+=("dir")
+                    else
+                        dest_item_types+=("file")
+                    fi
+                fi
+            done < "$temp_file"
+            
+            rm -f "$temp_file"
+        }
+        
+        while true; do
+            get_dest_items
+            clear
+            echo -e "${WHITE}=== Copier - Navigation ===${NC}"
+            echo -e "${CYAN}Élément à copier:${NC} $item_name"
+            echo -e "${CYAN}Répertoire de destination:${NC} $(realpath "$dest_dir")"
+            echo ""
+            echo -e "${YELLOW}Contrôles:${NC}"
+            echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+            echo -e "  ${GREEN}Entrée${NC} : Entrer dans le dossier"
+            echo -e "  ${GREEN}c${NC} : Copier ici"
+            echo -e "  ${GREEN}←/→${NC} : Page précédente/suivante"
+            echo -e "  ${GREEN}q${NC} : Annuler"
+            echo ""
+            
+            # Calculer les indices de pagination
+            local total_items=${#dest_items[@]}
+            local total_pages=$(( (total_items + dest_items_per_page - 1) / dest_items_per_page ))
+            local start_index=$((dest_page * dest_items_per_page))
+            local end_index=$((start_index + dest_items_per_page - 1))
+            
+            # Ajuster l'index sélectionné si nécessaire
+            if [[ $dest_index -ge $total_items ]]; then
+                dest_index=$((total_items - 1))
+            fi
+            if [[ $dest_index -lt 0 ]]; then
+                dest_index=0
+            fi
+            
+            # Ajuster la page courante si nécessaire
+            local selected_page=$((dest_index / dest_items_per_page))
+            if [[ $selected_page -ne $dest_page ]]; then
+                dest_page=$selected_page
+                start_index=$((dest_page * dest_items_per_page))
+                end_index=$((start_index + dest_items_per_page - 1))
+            fi
+            
+            # Afficher les éléments de la page courante
+            for ((i=start_index; i<=end_index && i<total_items; i++)); do
+                local item="${dest_items[$i]}"
+                local type="${dest_item_types[$i]}"
+                local prefix="  "
+                local color=""
+                
+                if [[ $i -eq $dest_index ]]; then
+                    prefix="> "
+                    color="${WHITE}"
+                fi
+                
+                if [[ "$type" == "dir" ]]; then
+                    echo -e "${prefix}${color}${BLUE}[DIR]${NC} ${color}$item${NC}"
+                else
+                    echo -e "${prefix}${color}${GREEN}[FILE]${NC} ${color}$item${NC}"
+                fi
+            done
+            
+            # Afficher les informations de pagination
+            echo ""
+            echo -e "${PURPLE}Page $((dest_page + 1))/$total_pages - Élément $((dest_index + 1))/$total_items${NC}"
+            
+            # Lire la touche
+            read -rsn1 key
+            
+            case "$key" in
+                $'\x1b')  # Séquence d'échappement (flèches)
+                    read -rsn2 key
+                    case "$key" in
+                        '[A')  # Flèche haut
+                            if [[ $dest_index -gt 0 ]]; then
+                                dest_index=$((dest_index - 1))
+                            fi
+                            ;;
+                        '[B')  # Flèche bas
+                            if [[ $dest_index -lt $((total_items - 1)) ]]; then
+                                dest_index=$((dest_index + 1))
+                            fi
+                            ;;
+                        '[C')  # Flèche droite (page suivante)
+                            if [[ $dest_page -lt $((total_pages - 1)) ]]; then
+                                dest_page=$((dest_page + 1))
+                                dest_index=$((dest_page * dest_items_per_page))
+                            fi
+                            ;;
+                        '[D')  # Flèche gauche (page précédente)
+                            if [[ $dest_page -gt 0 ]]; then
+                                dest_page=$((dest_page - 1))
+                                dest_index=$((dest_page * dest_items_per_page))
+                            fi
+                            ;;
+                    esac
+                    ;;
+                '')  # Entrée
+                    if [[ ${#dest_items[@]} -gt 0 ]]; then
+                        local selected_item="${dest_items[$dest_index]}"
+                        local selected_type="${dest_item_types[$dest_index]}"
+                        
+                        if [[ "$selected_type" == "dir" ]]; then
+                            if [[ "$selected_item" == ".." ]]; then
+                                # Navigation vers le répertoire parent
+                                if [[ "$dest_dir" == "/" ]]; then
+                                    # On est déjà à la racine, ne rien faire
+                                    continue
+                                else
+                                    # Obtenir le répertoire parent de manière plus robuste
+                                    if [[ "$dest_dir" == *"/"* ]]; then
+                                        # Enlever le dernier segment du chemin
+                                        dest_dir="${dest_dir%/*}"
+                                        # S'assurer qu'on ne va pas en dessous de la racine
+                                        if [[ -z "$dest_dir" ]]; then
+                                            dest_dir="/"
+                                        fi
+                                    else
+                                        dest_dir="/"
+                                    fi
+                                fi
+                                dest_index=0
+                                dest_page=0
+                            else
+                                # Entrer dans le dossier
+                                if [[ "$dest_dir" == "/" ]]; then
+                                    dest_dir="/$selected_item"
+                                else
+                                    dest_dir="$dest_dir/$selected_item"
+                                fi
+                                dest_index=0
+                                dest_page=0
+                            fi
+                        else
+                            echo -e "${RED}Erreur: Vous devez sélectionner un répertoire${NC}"
+                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                            read
+                        fi
+                    fi
+                    ;;
+                'c')  # Copier ici
+                    # Effectuer la copie vers le répertoire courant
+                    local dest_file="$dest_dir/$item_name"
+                    if [[ -e "$dest_file" ]]; then
+                        echo -e "${RED}Erreur: Un élément avec ce nom existe déjà dans la destination${NC}"
+                        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                        read
+                    else
+                        echo -e "${YELLOW}Copie en cours...${NC}"
+                        if [[ "$item_type" == "dir" ]]; then
+                            if cp -r "$item_path" "$dest_dir/" 2>/dev/null; then
+                                echo -e "${GREEN}Dossier copié avec succès vers $dest_dir${NC}"
+                            else
+                                echo -e "${RED}Erreur lors de la copie du dossier${NC}"
+                            fi
+                        else
+                            if cp "$item_path" "$dest_dir/" 2>/dev/null; then
+                                echo -e "${GREEN}Fichier copié avec succès vers $dest_dir${NC}"
+                            else
+                                echo -e "${RED}Erreur lors de la copie du fichier${NC}"
+                            fi
+                        fi
+                        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                        read
+                        return
+                    fi
+                    ;;
+                'q')  # Quitter
+                    echo -e "${YELLOW}Copie annulée${NC}"
+                    echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                    read
+                    return
+                    ;;
+            esac
+        done
+    }
+    
+    # Fonction pour copier avec saisie manuelle
+    copy_item_manual() {
+        local item_path="$1"
+        local item_name="$2"
+        local item_type="$3"
+        
+        clear
+        echo -e "${WHITE}=== Copier - Saisie manuelle ===${NC}"
+        echo -e "${CYAN}Élément:${NC} $item_name"
+        echo -e "${CYAN}Type:${NC} $item_type"
+        echo -e "${CYAN}Chemin actuel:${NC} $item_path"
+        echo ""
+        echo -e "${CYAN}Chemin de destination:${NC} "
+        read -r dest_path
+        
+        if [[ -n "$dest_path" ]]; then
+            # Convertir le chemin relatif en absolu si nécessaire
+            if [[ "$dest_path" != /* ]]; then
+                dest_path="$current_dir/$dest_path"
+            fi
+            
+            if [[ -d "$dest_path" ]]; then
+                local dest_file="$dest_path/$item_name"
+                if [[ -e "$dest_file" ]]; then
+                    echo -e "${RED}Erreur: Un élément avec ce nom existe déjà dans la destination${NC}"
+                else
+                    echo -e "${YELLOW}Copie en cours...${NC}"
+                    if [[ "$item_type" == "dir" ]]; then
+                        if cp -r "$item_path" "$dest_path/" 2>/dev/null; then
+                            echo -e "${GREEN}Dossier copié avec succès vers $dest_path${NC}"
+                        else
+                            echo -e "${RED}Erreur lors de la copie du dossier${NC}"
+                        fi
+                    else
+                        if cp "$item_path" "$dest_path/" 2>/dev/null; then
+                            echo -e "${GREEN}Fichier copié avec succès vers $dest_path${NC}"
+                        else
+                            echo -e "${RED}Erreur lors de la copie du fichier${NC}"
+                        fi
+                    fi
+                fi
+            else
+                echo -e "${RED}Erreur: Le répertoire de destination n'existe pas${NC}"
+            fi
+        else
+            echo -e "${YELLOW}Copie annulée${NC}"
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour copier via SSH
+    copy_item_ssh() {
+        local item_path="$1"
+        local item_name="$2"
+        local item_type="$3"
+        
+        # Vérifier si les outils SSH sont disponibles
+        if ! command -v scp >/dev/null 2>&1 && ! command -v rsync >/dev/null 2>&1; then
+            echo -e "${RED}Erreur: Aucun outil SSH (scp/rsync) n'est disponible${NC}"
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        # Définir les options du menu SSH
+        local ssh_options=("Vers machine distante" "Depuis machine distante" "Gérer les connexions SSH")
+        local selected_option=0
+        
+        while true; do
+            clear
+            echo -e "${WHITE}=== Copie SSH ===${NC}"
+            echo -e "${CYAN}Élément:${NC} $item_name"
+            echo -e "${CYAN}Type:${NC} $item_type"
+            echo -e "${CYAN}Chemin:${NC} $item_path"
+            echo ""
+            echo -e "${YELLOW}Choisissez l'opération:${NC}"
+            echo ""
+            
+            # Afficher les options avec sélection
+            for ((i=0; i<${#ssh_options[@]}; i++)); do
+                local prefix="  "
+                local color=""
+                
+                if [[ $i -eq $selected_option ]]; then
+                    prefix="> "
+                    color="${WHITE}"
+                fi
+                
+                echo -e "${prefix}${color}${GREEN}[SSH]${NC} ${color}${ssh_options[$i]}${NC}"
+            done
+            
+            echo ""
+            echo -e "${YELLOW}Contrôles:${NC}"
+            echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+            echo -e "  ${GREEN}Entrée${NC} : Sélectionner"
+            echo -e "  ${GREEN}q${NC} : Annuler"
+            echo ""
+            
+            # Lire la touche
+            read -rsn1 key
+            
+            case "$key" in
+                $'\e')  # Séquence d'échappement
+                    read -rsn2 key
+                    case "$key" in
+                        '[A')  # Flèche haut
+                            if [[ $selected_option -gt 0 ]]; then
+                                selected_option=$((selected_option - 1))
+                            fi
+                            ;;
+                        '[B')  # Flèche bas
+                            if [[ $selected_option -lt $((${#ssh_options[@]} - 1)) ]]; then
+                                selected_option=$((selected_option + 1))
+                            fi
+                            ;;
+                    esac
+                    ;;
+                '')  # Entrée
+                    local chosen_option="${ssh_options[$selected_option]}"
+                    
+                    case "$chosen_option" in
+                        "Vers machine distante")
+                            ssh_copy_to_remote "$item_path" "$item_name" "$item_type"
+                            return
+                            ;;
+                        "Depuis machine distante")
+                            ssh_copy_from_remote "$item_path" "$item_name" "$item_type"
+                            return
+                            ;;
+                        "Gérer les connexions SSH")
+                            ssh_manage_connections
+                            ;;
+                    esac
+                    ;;
+                'q')  # Quitter
+                    return
+                    ;;
+            esac
+        done
+    }
+    
+    # Fonction pour copier vers une machine distante
+    ssh_copy_to_remote() {
+        local item_path="$1"
+        local item_name="$2"
+        local item_type="$3"
+        
+        # Charger les connexions SSH configurées
+        local ssh_connections=()
+        local ssh_config_file="$HOME/.ssh/config"
+        
+        if [[ -f "$ssh_config_file" ]]; then
+            while IFS= read -r line; do
+                if [[ "$line" =~ ^Host[[:space:]]+([^#*[:space:]]+) ]]; then
+                    local host_name="${BASH_REMATCH[1]}"
+                    if [[ "$host_name" != "*" ]]; then
+                        ssh_connections+=("$host_name")
+                    fi
+                fi
+            done < "$ssh_config_file"
+        fi
+        
+        # Si des connexions SSH sont configurées, permettre la navigation
+        if [[ ${#ssh_connections[@]} -gt 0 ]]; then
+            local selected_ssh_index=0
+            
+            while true; do
+                clear
+                echo -e "${WHITE}=== Copie vers machine distante ===${NC}"
+                echo -e "${CYAN}Élément:${NC} $item_name"
+                echo -e "${CYAN}Type:${NC} $item_type"
+                echo ""
+                echo -e "${YELLOW}Connexions SSH disponibles:${NC}"
+                echo ""
+                
+                # Afficher les connexions avec sélection
+                for ((i=0; i<${#ssh_connections[@]}; i++)); do
+                    local prefix="  "
+                    local color=""
+                    
+                    if [[ $i -eq $selected_ssh_index ]]; then
+                        prefix="> "
+                        color="${WHITE}"
+                    fi
+                    
+                    echo -e "${prefix}${color}${GREEN}[SSH]${NC} ${color}${ssh_connections[$i]}${NC}"
+                done
+                
+                echo ""
+                echo -e "${YELLOW}Contrôles:${NC}"
+                echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+                echo -e "  ${GREEN}Entrée${NC} : Sélectionner cette connexion"
+                echo -e "  ${GREEN}m${NC} : Saisie manuelle"
+                echo -e "  ${GREEN}q${NC} : Annuler"
+                echo ""
+                
+                # Lire la touche
+                read -rsn1 key
+                
+                case "$key" in
+                    $'\e')  # Séquence d'échappement
+                        read -rsn2 key
+                        case "$key" in
+                            '[A')  # Flèche haut
+                                if [[ $selected_ssh_index -gt 0 ]]; then
+                                    selected_ssh_index=$((selected_ssh_index - 1))
+                                fi
+                                ;;
+                            '[B')  # Flèche bas
+                                if [[ $selected_ssh_index -lt $((${#ssh_connections[@]} - 1)) ]]; then
+                                    selected_ssh_index=$((selected_ssh_index + 1))
+                                fi
+                                ;;
+                        esac
+                        ;;
+                    '')  # Entrée
+                        ssh_connection="${ssh_connections[$selected_ssh_index]}"
+                        echo -e "${GREEN}Connexion sélectionnée: $ssh_connection${NC}"
+                        break
+                        ;;
+                    'm')  # Saisie manuelle
+                        echo -e "${CYAN}Connexion SSH (nom d'hôte ou user@host:port):${NC} "
+                        read -r ssh_connection
+                        if [[ -z "$ssh_connection" ]]; then
+                            echo -e "${YELLOW}Copie annulée${NC}"
+                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                            read
+                            return
+                        fi
+                        break
+                        ;;
+                    'q')  # Quitter
+                        echo -e "${YELLOW}Copie annulée${NC}"
+                        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                        read
+                        return
+                        ;;
+                esac
+            done
+        else
+            clear
+            echo -e "${WHITE}=== Copie vers machine distante ===${NC}"
+            echo -e "${CYAN}Élément:${NC} $item_name"
+            echo -e "${CYAN}Type:${NC} $item_type"
+            echo ""
+            echo -e "${CYAN}Connexion SSH (nom d'hôte ou user@host:port):${NC} "
+            read -r ssh_connection
+            
+            if [[ -z "$ssh_connection" ]]; then
+                echo -e "${YELLOW}Copie annulée${NC}"
+                echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                read
+                return
+            fi
+        fi
+        
+        echo -e "${CYAN}Répertoire de destination sur la machine distante:${NC} "
+        read -r remote_path
+        
+        if [[ -z "$remote_path" ]]; then
+            remote_path="~"
+        fi
+        
+        echo -e "${YELLOW}Copie en cours...${NC}"
+        
+        # Effectuer la copie
+        if [[ "$item_type" == "dir" ]]; then
+            if command -v rsync >/dev/null 2>&1; then
+                if rsync -avz -e ssh "$item_path/" "$ssh_connection:$remote_path/$item_name/" 2>/dev/null; then
+                    echo -e "${GREEN}Dossier copié avec succès vers $ssh_connection:$remote_path/$item_name${NC}"
+                else
+                    echo -e "${RED}Erreur lors de la copie du dossier${NC}"
+                fi
+            else
+                if scp -r "$item_path" "$ssh_connection:$remote_path/" 2>/dev/null; then
+                    echo -e "${GREEN}Dossier copié avec succès vers $ssh_connection:$remote_path${NC}"
+                else
+                    echo -e "${RED}Erreur lors de la copie du dossier${NC}"
+                fi
+            fi
+        else
+            if scp "$item_path" "$ssh_connection:$remote_path/" 2>/dev/null; then
+                echo -e "${GREEN}Fichier copié avec succès vers $ssh_connection:$remote_path${NC}"
+            else
+                echo -e "${RED}Erreur lors de la copie du fichier${NC}"
+            fi
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour copier depuis une machine distante
+    ssh_copy_from_remote() {
+        local item_path="$1"
+        local item_name="$2"
+        local item_type="$3"
+        
+        # Charger les connexions SSH configurées
+        local ssh_connections=()
+        local ssh_config_file="$HOME/.ssh/config"
+        
+        if [[ -f "$ssh_config_file" ]]; then
+            while IFS= read -r line; do
+                if [[ "$line" =~ ^Host[[:space:]]+([^#*[:space:]]+) ]]; then
+                    local host_name="${BASH_REMATCH[1]}"
+                    if [[ "$host_name" != "*" ]]; then
+                        ssh_connections+=("$host_name")
+                    fi
+                fi
+            done < "$ssh_config_file"
+        fi
+        
+        # Si des connexions SSH sont configurées, permettre la navigation
+        if [[ ${#ssh_connections[@]} -gt 0 ]]; then
+            local selected_ssh_index=0
+            
+            while true; do
+                clear
+                echo -e "${WHITE}=== Copie depuis machine distante ===${NC}"
+                echo -e "${CYAN}Élément local:${NC} $item_name"
+                echo -e "${CYAN}Type:${NC} $item_type"
+                echo ""
+                echo -e "${YELLOW}Connexions SSH disponibles:${NC}"
+                echo ""
+                
+                # Afficher les connexions avec sélection
+                for ((i=0; i<${#ssh_connections[@]}; i++)); do
+                    local prefix="  "
+                    local color=""
+                    
+                    if [[ $i -eq $selected_ssh_index ]]; then
+                        prefix="> "
+                        color="${WHITE}"
+                    fi
+                    
+                    echo -e "${prefix}${color}${GREEN}[SSH]${NC} ${color}${ssh_connections[$i]}${NC}"
+                done
+                
+                echo ""
+                echo -e "${YELLOW}Contrôles:${NC}"
+                echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+                echo -e "  ${GREEN}Entrée${NC} : Sélectionner cette connexion"
+                echo -e "  ${GREEN}m${NC} : Saisie manuelle"
+                echo -e "  ${GREEN}q${NC} : Annuler"
+                echo ""
+                
+                # Lire la touche
+                read -rsn1 key
+                
+                case "$key" in
+                    $'\e')  # Séquence d'échappement
+                        read -rsn2 key
+                        case "$key" in
+                            '[A')  # Flèche haut
+                                if [[ $selected_ssh_index -gt 0 ]]; then
+                                    selected_ssh_index=$((selected_ssh_index - 1))
+                                fi
+                                ;;
+                            '[B')  # Flèche bas
+                                if [[ $selected_ssh_index -lt $((${#ssh_connections[@]} - 1)) ]]; then
+                                    selected_ssh_index=$((selected_ssh_index + 1))
+                                fi
+                                ;;
+                        esac
+                        ;;
+                    '')  # Entrée
+                        ssh_connection="${ssh_connections[$selected_ssh_index]}"
+                        echo -e "${GREEN}Connexion sélectionnée: $ssh_connection${NC}"
+                        break
+                        ;;
+                    'm')  # Saisie manuelle
+                        echo -e "${CYAN}Connexion SSH (nom d'hôte ou user@host:port):${NC} "
+                        read -r ssh_connection
+                        if [[ -z "$ssh_connection" ]]; then
+                            echo -e "${YELLOW}Copie annulée${NC}"
+                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                            read
+                            return
+                        fi
+                        break
+                        ;;
+                    'q')  # Quitter
+                        echo -e "${YELLOW}Copie annulée${NC}"
+                        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                        read
+                        return
+                        ;;
+                esac
+            done
+        else
+            clear
+            echo -e "${WHITE}=== Copie depuis machine distante ===${NC}"
+            echo -e "${CYAN}Élément local:${NC} $item_name"
+            echo -e "${CYAN}Type:${NC} $item_type"
+            echo ""
+            echo -e "${CYAN}Connexion SSH (nom d'hôte ou user@host:port):${NC} "
+            read -r ssh_connection
+            
+            if [[ -z "$ssh_connection" ]]; then
+                echo -e "${YELLOW}Copie annulée${NC}"
+                echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                read
+                return
+            fi
+        fi
+        
+        echo -e "${CYAN}Chemin de l'élément sur la machine distante:${NC} "
+        read -r remote_item_path
+        
+        if [[ -z "$remote_item_path" ]]; then
+            echo -e "${YELLOW}Copie annulée${NC}"
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        echo -e "${CYAN}Nom local (optionnel):${NC} "
+        read -r local_name
+        
+        if [[ -z "$local_name" ]]; then
+            local_name=$(basename "$remote_item_path")
+        fi
+        
+        local local_path="$current_dir/$local_name"
+        
+        # Vérifier si l'élément existe déjà
+        if [[ -e "$local_path" ]]; then
+            echo -e "${RED}Erreur: Un élément avec ce nom existe déjà${NC}"
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        echo -e "${YELLOW}Copie en cours...${NC}"
+        
+        # Effectuer la copie
+        if [[ -d "$remote_item_path" ]] || [[ "$remote_item_path" == */ ]]; then
+            # C'est un dossier
+            if command -v rsync >/dev/null 2>&1; then
+                if rsync -avz -e ssh "$ssh_connection:$remote_item_path/" "$local_path/" 2>/dev/null; then
+                    echo -e "${GREEN}Dossier copié avec succès depuis $ssh_connection:$remote_item_path${NC}"
+                else
+                    echo -e "${RED}Erreur lors de la copie du dossier${NC}"
+                fi
+            else
+                if scp -r "$ssh_connection:$remote_item_path" "$local_path" 2>/dev/null; then
+                    echo -e "${GREEN}Dossier copié avec succès depuis $ssh_connection:$remote_item_path${NC}"
+                else
+                    echo -e "${RED}Erreur lors de la copie du dossier${NC}"
+                fi
+            fi
+        else
+            # C'est un fichier
+            if scp "$ssh_connection:$remote_item_path" "$local_path" 2>/dev/null; then
+                echo -e "${GREEN}Fichier copié avec succès depuis $ssh_connection:$remote_item_path${NC}"
+            else
+                echo -e "${RED}Erreur lors de la copie du fichier${NC}"
+            fi
+        fi
+        
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour gérer les connexions SSH
+    ssh_manage_connections() {
+        local ssh_config_file="$HOME/.ssh/config"
+        local ssh_connections=()
+        local ssh_connection_details=()
+        
+        # Charger les connexions SSH configurées
+        if [[ -f "$ssh_config_file" ]]; then
+            local current_host=""
+            local current_user=""
+            local current_hostname=""
+            local current_port=""
+            
+            while IFS= read -r line; do
+                # Ignorer les commentaires et lignes vides
+                if [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]]; then
+                    continue
+                fi
+                
+                # Détecter les sections Host
+                if [[ "$line" =~ ^Host[[:space:]]+([^#*[:space:]]+) ]]; then
+                    # Sauvegarder la connexion précédente si elle existe
+                    if [[ -n "$current_host" && "$current_host" != "*" ]]; then
+                        local display_info="$current_host"
+                        if [[ -n "$current_user" && -n "$current_hostname" ]]; then
+                            display_info="$current_user@$current_hostname"
+                            if [[ -n "$current_port" && "$current_port" != "22" ]]; then
+                                display_info="$display_info:$current_port"
+                            fi
+                        fi
+                        ssh_connections+=("$current_host")
+                        ssh_connection_details+=("$display_info")
+                    fi
+                    
+                    # Nouvelle section Host
+                    current_host="${BASH_REMATCH[1]}"
+                    current_user=""
+                    current_hostname=""
+                    current_port=""
+                elif [[ "$line" =~ ^[[:space:]]+User[[:space:]]+(.+) ]]; then
+                    current_user="${BASH_REMATCH[1]}"
+                elif [[ "$line" =~ ^[[:space:]]+HostName[[:space:]]+(.+) ]]; then
+                    current_hostname="${BASH_REMATCH[1]}"
+                elif [[ "$line" =~ ^[[:space:]]+Port[[:space:]]+(.+) ]]; then
+                    current_port="${BASH_REMATCH[1]}"
+                fi
+            done < "$ssh_config_file"
+            
+            # Sauvegarder la dernière connexion
+            if [[ -n "$current_host" && "$current_host" != "*" ]]; then
+                local display_info="$current_host"
+                if [[ -n "$current_user" && -n "$current_hostname" ]]; then
+                    display_info="$current_user@$current_hostname"
+                    if [[ -n "$current_port" && "$current_port" != "22" ]]; then
+                        display_info="$display_info:$current_port"
+                    fi
+                fi
+                ssh_connections+=("$current_host")
+                ssh_connection_details+=("$display_info")
+            fi
+        fi
+        
+        if [[ ${#ssh_connections[@]} -eq 0 ]]; then
+            clear
+            echo -e "${WHITE}=== Connexions SSH configurées ===${NC}"
+            echo ""
+            echo -e "${YELLOW}Aucun fichier de configuration SSH trouvé${NC}"
+            echo -e "${CYAN}Créez ~/.ssh/config pour configurer vos connexions SSH${NC}"
+            echo ""
+            echo -e "${YELLOW}Exemple de configuration:${NC}"
+            echo -e "Host phloxe-ovh-prod"
+            echo -e "    HostName 192.168.1.100"
+            echo -e "    User monuser"
+            echo -e "    Port 22"
+            echo ""
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        local selected_index=0
+        
+        while true; do
+            clear
+            echo -e "${WHITE}=== Connexions SSH configurées ===${NC}"
+            echo -e "${CYAN}Fichier de configuration:${NC} $ssh_config_file"
+            echo ""
+            echo -e "${YELLOW}Connexions SSH disponibles:${NC}"
+            echo ""
+            
+            # Afficher les connexions avec sélection
+            for ((i=0; i<${#ssh_connections[@]}; i++)); do
+                local prefix="  "
+                local color=""
+                
+                if [[ $i -eq $selected_index ]]; then
+                    prefix="> "
+                    color="${WHITE}"
+                fi
+                
+                echo -e "${prefix}${color}${GREEN}[SSH]${NC} ${color}${ssh_connections[$i]}${NC} -> ${CYAN}${ssh_connection_details[$i]}${NC}"
+            done
+            
+            echo ""
+            echo -e "${YELLOW}Contrôles:${NC}"
+            echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+            echo -e "  ${GREEN}Entrée${NC} : Sélectionner cette connexion"
+            echo -e "  ${GREEN}c${NC} : Copier le nom de la connexion"
+            echo -e "  ${GREEN}q${NC} : Retour"
+            echo ""
+            echo -e "${YELLOW}Utilisation:${NC}"
+            echo -e "  • Utilisez le nom d'hôte affiché pour les connexions"
+            echo -e "  • Ou utilisez le format complet user@host:port"
+            echo ""
+            
+            # Lire la touche
+            read -rsn1 key
+            
+            case "$key" in
+                $'\e')  # Séquence d'échappement
+                    read -rsn2 key
+                    case "$key" in
+                        '[A')  # Flèche haut
+                            if [[ $selected_index -gt 0 ]]; then
+                                selected_index=$((selected_index - 1))
+                            fi
+                            ;;
+                        '[B')  # Flèche bas
+                            if [[ $selected_index -lt $((${#ssh_connections[@]} - 1)) ]]; then
+                                selected_index=$((selected_index + 1))
+                            fi
+                            ;;
+                    esac
+                    ;;
+                '')  # Entrée
+                    local selected_connection="${ssh_connections[$selected_index]}"
+                    echo -e "${GREEN}Connexion sélectionnée: $selected_connection${NC}"
+                    echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                    read
+                    return
+                    ;;
+                'c')  # Copier le nom
+                    local selected_connection="${ssh_connections[$selected_index]}"
+                    echo -e "${GREEN}Nom de connexion: $selected_connection${NC}"
+                    echo -e "${YELLOW}Utilisez ce nom pour vos connexions SSH${NC}"
+                    echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                    read
+                    ;;
+                'q')  # Quitter
+                    return
+                    ;;
+            esac
+        done
+    }
+    
     
     # Fonction pour zipper un élément
     zip_item() {
