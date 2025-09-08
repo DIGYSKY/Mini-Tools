@@ -2270,20 +2270,11 @@ interactive_mode() {
             fi
         fi
         
-        # Demander le répertoire de destination
-        echo -e "${CYAN}Répertoire de destination sur la machine distante:${NC} "
-        read -r remote_path
-        
-        if [[ -z "$remote_path" ]]; then
-            remote_path="~"
-        fi
-        
-        # Générer les commandes SCP
+        # Générer les commandes SCP génériques
         clear
         echo -e "${WHITE}=== Commandes SCP générées ===${NC}"
         echo -e "${CYAN}Élément:${NC} $item_name"
         echo -e "${CYAN}Connexion:${NC} $ssh_connection"
-        echo -e "${CYAN}Destination:${NC} $remote_path"
         echo ""
         
         echo -e "${YELLOW}=== Copie VERS la machine distante ===${NC}"
@@ -2291,9 +2282,9 @@ interactive_mode() {
         echo ""
         
         if [[ "$item_type" == "dir" ]]; then
-            echo -e "${WHITE}scp -r \"$item_path\" $ssh_connection:$remote_path/${NC}"
+            echo -e "${WHITE}scp -r ./$item_name $ssh_connection:~/destination/${NC}"
         else
-            echo -e "${WHITE}scp \"$item_path\" $ssh_connection:$remote_path/${NC}"
+            echo -e "${WHITE}scp ./$item_name $ssh_connection:~/destination/${NC}"
         fi
         
         echo ""
@@ -2302,26 +2293,26 @@ interactive_mode() {
         echo ""
         
         if [[ "$item_type" == "dir" ]]; then
-            echo -e "${WHITE}scp -r $ssh_connection:$remote_path/$item_name .${NC}"
+            echo -e "${WHITE}scp -r $ssh_connection:~/source/$item_name ./${NC}"
         else
-            echo -e "${WHITE}scp $ssh_connection:$remote_path/$item_name .${NC}"
+            echo -e "${WHITE}scp $ssh_connection:~/source/$item_name ./${NC}"
         fi
         
         echo ""
         echo -e "${YELLOW}=== Commandes alternatives avec rsync ===${NC}"
         echo -e "${GREEN}Vers machine distante:${NC}"
         if [[ "$item_type" == "dir" ]]; then
-            echo -e "${WHITE}rsync -avz \"$item_path/\" $ssh_connection:$remote_path/$item_name/${NC}"
+            echo -e "${WHITE}rsync -avz ./$item_name/ $ssh_connection:~/destination/$item_name/${NC}"
         else
-            echo -e "${WHITE}rsync -avz \"$item_path\" $ssh_connection:$remote_path/${NC}"
+            echo -e "${WHITE}rsync -avz ./$item_name $ssh_connection:~/destination/${NC}"
         fi
         
         echo ""
         echo -e "${GREEN}Depuis machine distante:${NC}"
         if [[ "$item_type" == "dir" ]]; then
-            echo -e "${WHITE}rsync -avz $ssh_connection:$remote_path/$item_name/ ./$item_name/${NC}"
+            echo -e "${WHITE}rsync -avz $ssh_connection:~/source/$item_name/ ./$item_name/${NC}"
         else
-            echo -e "${WHITE}rsync -avz $ssh_connection:$remote_path/$item_name .${NC}"
+            echo -e "${WHITE}rsync -avz $ssh_connection:~/source/$item_name ./${NC}"
         fi
         
         echo ""
