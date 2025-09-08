@@ -386,7 +386,7 @@ interactive_mode() {
     local current_dir="$1"
     local selected_index=0
     local current_page=0
-    local items_per_page=10
+    local items_per_page=20
     local items=()
     local item_types=()
     
