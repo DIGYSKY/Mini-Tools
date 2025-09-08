@@ -149,6 +149,27 @@ search_spotlight() {
     # Exécuter la recherche Spotlight
     eval "$mdfind_cmd \"$query\"" 2>/dev/null | while IFS= read -r file; do
         if [[ -n "$file" && -e "$file" ]]; then
+            # Vérifier la profondeur si spécifiée
+            if [[ -n "$MAX_DEPTH" && "$MAX_DEPTH" != "1" ]]; then
+                # Calculer la profondeur relative au répertoire de recherche
+                local relative_path="${file#$abs_search_dir/}"
+                local depth=$(echo "$relative_path" | tr -cd '/' | wc -c)
+                depth=$((depth + 1))
+                
+                # Ignorer si la profondeur dépasse la limite
+                if [[ $depth -gt $MAX_DEPTH ]]; then
+                    continue
+                fi
+            fi
+            
+            # Vérifier les fichiers cachés si nécessaire
+            if [[ "$SHOW_HIDDEN" == false ]]; then
+                local basename=$(basename "$file")
+                if [[ "$basename" =~ ^\..* ]]; then
+                    continue
+                fi
+            fi
+            
             display_result "$file"
         fi
     done
