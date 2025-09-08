@@ -867,17 +867,24 @@ interactive_mode() {
                 echo -e "${GREEN}Répertoire sélectionné: $current_dir${NC}"
                 echo -e "${YELLOW}Changement de répertoire...${NC}"
                 
-                # Créer un script qui sera exécuté par le shell parent
-                local temp_script=$(mktemp)
-                cat > "$temp_script" << EOF
-#!/bin/bash
-cd "$current_dir"
-echo -e "\${GREEN}Vous êtes maintenant dans: \$(pwd)\${NC}"
-rm -f "$temp_script"
-EOF
+                # Détecter le shell actuel de l'utilisateur
+                local current_shell=$(basename "$SHELL")
+                echo -e "${CYAN}Redirection vers $current_dir avec $current_shell...${NC}"
                 
-                # Exécuter le script dans le shell parent
-                exec bash "$temp_script"
+                case "$current_shell" in
+                    bash)
+                        exec bash --rcfile <(echo "cd \"$current_dir\"; exec bash")
+                        ;;
+                    zsh)
+                        exec zsh --rcs -c "cd \"$current_dir\"; exec zsh"
+                        ;;
+                    *)
+                        echo -e "${RED}Shell non géré : $current_shell${NC}"
+                        echo -e "${YELLOW}Veuillez exécuter : cd \"$current_dir\"${NC}"
+                        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                        read
+                        ;;
+                esac
                 ;;
             'h')  # Basculer les fichiers cachés
                 if [[ "$SHOW_HIDDEN" == true ]]; then
