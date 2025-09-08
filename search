@@ -47,11 +47,11 @@ show_help() {
     echo -e "  ${GREEN}-e, --exact${NC}             Recherche exacte du nom (non stricte)"
     echo -e "  ${GREEN}-s, --spotlight${NC}         Utiliser l'index Spotlight de macOS (plus rapide, limitation de répertoire limitée)"
     echo -e "  ${GREEN}-a, --all${NC}               Inclure les fichiers cachés"
-    echo -e "  ${GREEN}--max-depth N${NC}           Profondeur maximale de recherche (défaut: 1)"
-    echo -e "  ${GREEN}--min-size SIZE${NC}         Taille minimale (ex: 1M, 100K)"
-    echo -e "  ${GREEN}--max-size SIZE${NC}         Taille maximale (ex: 10M, 1G)"
-    echo -e "  ${GREEN}--modified N${NC}            Modifié dans les N derniers jours"
-    echo -e "  ${GREEN}--format FORMAT${NC}         Format de sortie: detailed, simple, json"
+    echo -e "  ${GREEN}-mdh, --max-depth N${NC}           Profondeur maximale de recherche (défaut: 1)"
+    echo -e "  ${GREEN}-mis, --min-size SIZE${NC}         Taille minimale (ex: 1M, 100K)"
+    echo -e "  ${GREEN}-mas, --max-size SIZE${NC}         Taille maximale (ex: 10M, 1G)"
+    echo -e "  ${GREEN}-md, --modified N${NC}            Modifié dans les N derniers jours"
+    echo -e "  ${GREEN}-fo, --format FORMAT${NC}         Format de sortie: detailed, simple, json"
     echo ""
     echo -e "${YELLOW}EXEMPLES:${NC}"
     echo -e "  ${CYAN}search${NC}                            # Afficher le contenu du dossier courant"
@@ -422,23 +422,23 @@ main() {
                 SHOW_HIDDEN=true
                 shift
                 ;;
-            --max-depth)
+            -mdh  --max-depth)
                 MAX_DEPTH="$2"
                 shift 2
                 ;;
-            --min-size)
+            -mis | --min-size)
                 MIN_SIZE="$2"
                 shift 2
                 ;;
-            --max-size)
+            -mas | --max-size)
                 MAX_SIZE="$2"
                 shift 2
                 ;;
-            --modified)
+            -md | --modified)
                 MODIFIED_DAYS="$2"
                 shift 2
                 ;;
-            --format)
+            -fo | --format)
                 OUTPUT_FORMAT="$2"
                 if [[ ! "$OUTPUT_FORMAT" =~ ^(detailed|simple|json)$ ]]; then
                     echo -e "${RED}Erreur: Format invalide. Utilisez: detailed, simple, ou json${NC}"
