@@ -45,7 +45,7 @@ show_help() {
     echo -e "  ${GREEN}-i, --ignore-case${NC}       Ignorer la casse"
     echo -e "  ${GREEN}-r, --regex${NC}             Utiliser les expressions régulières"
     echo -e "  ${GREEN}-e, --exact${NC}             Recherche exacte du nom (non stricte)"
-    echo -e "  ${GREEN}-s, --spotlight${NC}         Utiliser l'index Spotlight de macOS (plus rapide)"
+    echo -e "  ${GREEN}-s, --spotlight${NC}         Utiliser l'index Spotlight de macOS (plus rapide, limitation de répertoire limitée)"
     echo -e "  ${GREEN}-a, --all${NC}               Inclure les fichiers cachés"
     echo -e "  ${GREEN}--max-depth N${NC}           Profondeur maximale de recherche (défaut: 1)"
     echo -e "  ${GREEN}--min-size SIZE${NC}         Taille minimale (ex: 1M, 100K)"
@@ -93,13 +93,23 @@ search_spotlight() {
         return 1
     fi
     
+    # Avertissement pour les chemins relatifs avec Spotlight
+    if [[ "$search_dir" == "." || "$search_dir" == "./" ]]; then
+        echo -e "${YELLOW}Note: Spotlight ne peut pas se limiter strictement au répertoire courant.${NC}"
+        echo -e "${YELLOW}Utilisez la recherche classique (sans -s) pour une limitation précise.${NC}"
+        echo ""
+        # Basculement vers la recherche classique
+        search_files "$pattern" "$search_dir"
+        return 0
+    fi
+    
     # Construire la requête Spotlight
     local mdfind_cmd="mdfind"
     
     # Ajouter le répertoire de recherche
     # Convertir le chemin relatif en chemin absolu
     local abs_search_dir
-    if [[ "$search_dir" == "." ]]; then
+    if [[ "$search_dir" == "." || "$search_dir" == "./" ]]; then
         abs_search_dir=$(pwd)
     else
         abs_search_dir=$(cd "$search_dir" 2>/dev/null && pwd || echo "$search_dir")
@@ -149,6 +159,11 @@ search_spotlight() {
     # Exécuter la recherche Spotlight
     eval "$mdfind_cmd \"$query\"" 2>/dev/null | while IFS= read -r file; do
         if [[ -n "$file" && -e "$file" ]]; then
+            # Vérification stricte : le fichier doit être dans le répertoire de recherche
+            if [[ "$file" != "$abs_search_dir"* ]]; then
+                continue
+            fi
+            
             # Vérifier la profondeur si spécifiée
             if [[ -n "$MAX_DEPTH" && "$MAX_DEPTH" != "1" ]]; then
                 # Calculer la profondeur relative au répertoire de recherche

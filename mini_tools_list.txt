@@ -5,4 +5,4 @@ Env-Manager "envmanager" (1.0.1) [Env-Manager is a tool for managing environment
 Git-Manager "gitmanager" (2.0.2) [Git-Manager is a tool for managing ssh keys and git repositories.]
 Snapper-Time "snappertime" (1.0.5) [Snapper-Time is a tool for managing snapshots of directories (is in beta) and or files (is in final), showing snapshots, and restoring snapshots.]
 Aegis "aegis" (2.0.0) [Aegis is a tool for crypting and decrypting files and directories. Now Aegis is multiprocessing and multithreading for faster encryption and decryption. performance is better than the previous version 40MiB/s.]
-Search "search" (1.1.0) [Search est un outil de recherche avancé pour fichiers et dossiers avec support des expressions régulières, recherche exacte, intégration Spotlight macOS, filtres par taille/date, et affichage des dates de création/modification.]
+Search "search" (1.1.1) [Search est un outil de recherche avancé pour fichiers et dossiers avec support des expressions régulières, recherche exacte, intégration Spotlight macOS, filtres par taille/date, et affichage des dates de création/modification.]
