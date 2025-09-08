@@ -22,7 +22,7 @@ CASE_SENSITIVE=true
 REGEX_MODE=false
 EXACT_MATCH=false  # Recherche exacte du nom (non stricte)
 USE_SPOTLIGHT=false  # Utiliser l'index Spotlight de macOS
-INTERACTIVE_MODE=false  # Mode interactif
+INTERACTIVE_MODE=true  # Mode interactif par défaut
 SHOW_HIDDEN=false
 MAX_DEPTH="1"  # Profondeur par défaut de 1 (répertoire courant uniquement)
 MIN_SIZE=""
@@ -56,15 +56,16 @@ show_help() {
     echo -e "  ${GREEN}-fo, --format FORMAT${NC}         Format de sortie: detailed, simple, json"
     echo ""
     echo -e "${YELLOW}EXEMPLES:${NC}"
-    echo -e "  ${CYAN}search${NC}                            # Afficher le contenu du dossier courant"
-    echo -e "  ${CYAN}search \"*.py\"${NC}                    # Rechercher tous les fichiers Python"
-    echo -e "  ${CYAN}search -t files \"config\"${NC}         # Rechercher fichiers contenant 'config'"
-    echo -e "  ${CYAN}search -e \"mini\"${NC}                 # Rechercher fichiers/dossiers nommés exactement 'mini'"
-    echo -e "  ${CYAN}search -s \"python\"${NC}               # Recherche rapide avec Spotlight"
-    echo -e "  ${CYAN}search -i${NC}                         # Mode interactif pour naviguer"
-    echo -e "  ${CYAN}search -r \"^[A-Z].*\"${NC}             # Rechercher avec regex"
-    echo -e "  ${CYAN}search --min-size 1M --max-size 10M${NC} # Fichiers entre 1M et 10M"
-    echo -e "  ${CYAN}search --modified 7 \"*.log\"${NC}      # Fichiers .log modifiés cette semaine"
+    echo -e "  ${CYAN}search${NC}                                 # Afficher le contenu du dossier courant"
+    echo -e "  ${CYAN}search \"*.py\"${NC}                          # Rechercher tous les fichiers Python"
+    echo -e "  ${CYAN}search -t files \"config\"${NC}               # Rechercher fichiers contenant 'config'"
+    echo -e "  ${CYAN}search -e \"mini\"${NC}                       # Rechercher fichiers/dossiers nommés exactement 'mini'"
+    echo -e "  ${CYAN}search -s \"python\"${NC}                     # Recherche rapide avec Spotlight"
+    echo -e "  ${CYAN}search -i${NC}                              # Mode interactif pour naviguer"
+    echo -e "  ${CYAN}search -i -d /chemin/vers/le/dossier${NC}   # Mode interactif dans un dossier spécifique"
+    echo -e "  ${CYAN}search -r \"^[A-Z].*\"${NC}                   # Rechercher avec regex"
+    echo -e "  ${CYAN}search --min-size 1M --max-size 10M${NC}    # Fichiers entre 1M et 10M"
+    echo -e "  ${CYAN}search --modified 7 \"*.log\"${NC}            # Fichiers .log modifiés cette semaine"
     echo ""
 }
 
@@ -434,6 +435,7 @@ interactive_mode() {
         echo -e "${YELLOW}Contrôles:${NC}"
         echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
         echo -e "  ${GREEN}Entrée${NC} : Entrer dans le dossier / Ouvrir le fichier"
+        echo -e "  ${GREEN}Backspace${NC} : Aller au répertoire parent"
         echo -e "  ${GREEN}/${NC} : Lancer une recherche"
         echo -e "  ${GREEN}s${NC} : Sélectionner ce répertoire"
         echo -e "  ${GREEN}h${NC} : Basculer les fichiers cachés"
@@ -894,6 +896,34 @@ interactive_mode() {
                 fi
                 selected_index=0
                 current_page=0
+                ;;
+            $'\x7f')  # Backspace (même effet que Entrée sur ..)
+                if [[ ${#items[@]} -gt 0 ]]; then
+                    local selected_item="${items[$selected_index]}"
+                    local selected_type="${item_types[$selected_index]}"
+                    
+                    if [[ "$selected_item" == ".." ]]; then
+                        # Navigation vers le répertoire parent
+                        if [[ "$current_dir" == "/" ]]; then
+                            # On est déjà à la racine, ne rien faire
+                            continue
+                        else
+                            # Obtenir le répertoire parent de manière plus robuste
+                            if [[ "$current_dir" == *"/"* ]]; then
+                                # Enlever le dernier segment du chemin
+                                current_dir="${current_dir%/*}"
+                                # S'assurer qu'on ne va pas en dessous de la racine
+                                if [[ -z "$current_dir" ]]; then
+                                    current_dir="/"
+                                fi
+                            else
+                                current_dir="/"
+                            fi
+                        fi
+                        selected_index=0
+                        current_page=0
+                    fi
+                fi
                 ;;
             'q')  # Quitter
                 echo ""
