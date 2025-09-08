@@ -21,6 +21,7 @@ SEARCH_TYPE="both"  # both, files, dirs
 CASE_SENSITIVE=true
 REGEX_MODE=false
 EXACT_MATCH=false  # Recherche exacte du nom (non stricte)
+USE_SPOTLIGHT=false  # Utiliser l'index Spotlight de macOS
 SHOW_HIDDEN=false
 MAX_DEPTH="1"  # Profondeur par défaut de 1 (répertoire courant uniquement)
 MIN_SIZE=""
@@ -44,6 +45,7 @@ show_help() {
     echo -e "  ${GREEN}-i, --ignore-case${NC}       Ignorer la casse"
     echo -e "  ${GREEN}-r, --regex${NC}             Utiliser les expressions régulières"
     echo -e "  ${GREEN}-e, --exact${NC}             Recherche exacte du nom (non stricte)"
+    echo -e "  ${GREEN}-s, --spotlight${NC}         Utiliser l'index Spotlight de macOS (plus rapide)"
     echo -e "  ${GREEN}-a, --all${NC}               Inclure les fichiers cachés"
     echo -e "  ${GREEN}--max-depth N${NC}           Profondeur maximale de recherche (défaut: 1)"
     echo -e "  ${GREEN}--min-size SIZE${NC}         Taille minimale (ex: 1M, 100K)"
@@ -56,6 +58,7 @@ show_help() {
     echo -e "  ${CYAN}search \"*.py\"${NC}                    # Rechercher tous les fichiers Python"
     echo -e "  ${CYAN}search -t files \"config\"${NC}         # Rechercher fichiers contenant 'config'"
     echo -e "  ${CYAN}search -e \"mini\"${NC}                 # Rechercher fichiers/dossiers nommés exactement 'mini'"
+    echo -e "  ${CYAN}search -s \"python\"${NC}               # Recherche rapide avec Spotlight"
     echo -e "  ${CYAN}search -r \"^[A-Z].*\"${NC}             # Rechercher avec regex"
     echo -e "  ${CYAN}search --min-size 1M --max-size 10M${NC} # Fichiers entre 1M et 10M"
     echo -e "  ${CYAN}search --modified 7 \"*.log\"${NC}      # Fichiers .log modifiés cette semaine"
@@ -77,6 +80,78 @@ parse_size() {
     else
         echo "0"
     fi
+}
+
+# Fonction de recherche avec Spotlight
+search_spotlight() {
+    local pattern="$1"
+    local search_dir="$2"
+    
+    # Vérifier que mdfind est disponible
+    if ! command -v mdfind &> /dev/null; then
+        echo -e "${RED}Erreur: mdfind n'est pas disponible. Spotlight n'est pas installé ou activé.${NC}"
+        return 1
+    fi
+    
+    # Construire la requête Spotlight
+    local mdfind_cmd="mdfind"
+    
+    # Ajouter le répertoire de recherche
+    # Convertir le chemin relatif en chemin absolu
+    local abs_search_dir
+    if [[ "$search_dir" == "." ]]; then
+        abs_search_dir=$(pwd)
+    else
+        abs_search_dir=$(cd "$search_dir" 2>/dev/null && pwd || echo "$search_dir")
+    fi
+    
+    # Toujours utiliser -onlyin pour limiter la recherche
+    mdfind_cmd="$mdfind_cmd -onlyin \"$abs_search_dir\""
+    
+    # Construire la requête selon le type de recherche
+    local query=""
+    
+    if [[ "$EXACT_MATCH" == true ]]; then
+        # Recherche exacte du nom
+        query="kMDItemDisplayName == '$pattern'"
+    elif [[ "$REGEX_MODE" == true ]]; then
+        # Mode regex (Spotlight ne supporte pas les regex complexes, on utilise une approximation)
+        query="kMDItemDisplayName == '*$pattern*'"
+    else
+        # Recherche partielle
+        query="kMDItemDisplayName == '*$pattern*'"
+    fi
+    
+    # Ajouter le type de fichier
+    if [[ "$SEARCH_TYPE" == "files" ]]; then
+        query="$query && kMDItemContentType != 'public.folder'"
+    elif [[ "$SEARCH_TYPE" == "dirs" ]]; then
+        query="$query && kMDItemContentType == 'public.folder'"
+    fi
+    
+    # Ajouter les filtres de taille si spécifiés
+    if [[ -n "$MIN_SIZE" ]]; then
+        local min_bytes=$(parse_size "$MIN_SIZE")
+        query="$query && kMDItemFSSize >= $min_bytes"
+    fi
+    
+    if [[ -n "$MAX_SIZE" ]]; then
+        local max_bytes=$(parse_size "$MAX_SIZE")
+        query="$query && kMDItemFSSize <= $max_bytes"
+    fi
+    
+    # Ajouter le filtre de date
+    if [[ -n "$MODIFIED_DAYS" ]]; then
+        local days_ago=$(date -v-${MODIFIED_DAYS}d +%Y-%m-%d 2>/dev/null || date -d "${MODIFIED_DAYS} days ago" +%Y-%m-%d 2>/dev/null)
+        query="$query && kMDItemFSContentChangeDate >= '$days_ago'"
+    fi
+    
+    # Exécuter la recherche Spotlight
+    eval "$mdfind_cmd \"$query\"" 2>/dev/null | while IFS= read -r file; do
+        if [[ -n "$file" && -e "$file" ]]; then
+            display_result "$file"
+        fi
+    done
 }
 
 # Fonction de recherche principale
@@ -303,6 +378,10 @@ main() {
                 EXACT_MATCH=true
                 shift
                 ;;
+            -s|--spotlight)
+                USE_SPOTLIGHT=true
+                shift
+                ;;
             -a|--all)
                 SHOW_HIDDEN=true
                 shift
@@ -399,6 +478,7 @@ main() {
     echo -e "${CYAN}Type:${NC} $SEARCH_TYPE"
     echo -e "${CYAN}Mode regex:${NC} $REGEX_MODE"
     echo -e "${CYAN}Recherche exacte:${NC} $EXACT_MATCH"
+    echo -e "${CYAN}Spotlight:${NC} $USE_SPOTLIGHT"
     echo -e "${CYAN}Cas sensible:${NC} $CASE_SENSITIVE"
     echo -e "${CYAN}Fichiers cachés:${NC} $SHOW_HIDDEN"
     if [[ -n "$MAX_DEPTH" ]]; then
@@ -418,6 +498,8 @@ main() {
     # Effectuer la recherche
     if [[ "$search_content_flag" == true ]]; then
         search_content "$search_pattern" "$search_directory"
+    elif [[ "$USE_SPOTLIGHT" == true ]]; then
+        search_spotlight "$search_pattern" "$search_directory"
     else
         search_files "$search_pattern" "$search_directory"
     fi
