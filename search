@@ -2151,6 +2151,7 @@ interactive_mode() {
         read
     }
     
+    
     # Fonction pour gérer les connexions SSH
     ssh_manage_connections() {
         local ssh_config_file="$HOME/.ssh/config"
