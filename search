@@ -395,6 +395,10 @@ interactive_mode() {
         items=()
         item_types=()
         
+        # Ajouter le répertoire courant
+        items+=(".")
+        item_types+=("dir")
+        
         # Ajouter le répertoire parent si on n'est pas à la racine
         if [[ "$current_dir" != "/" ]]; then
             items+=("..")
@@ -578,7 +582,7 @@ interactive_mode() {
         local selected_type="${item_types[$selected_index]}"
         local selected_path="$current_dir/$selected_item"
         
-        # Gérer le répertoire parent différemment
+        # Gérer le répertoire parent et le répertoire courant différemment
         if [[ "$selected_item" == ".." ]]; then
             # Définir les options limitées pour le répertoire parent
             local parent_options=("Afficher détails" "Créer un fichier" "Créer un dossier")
@@ -654,29 +658,191 @@ interactive_mode() {
                         ;;
                 esac
             done
+        elif [[ "$selected_item" == "." ]]; then
+            # Définir les options pour le répertoire courant
+            local current_options=("Afficher détails" "Ouvrir avec" "Renommer" "Statistiques et hash" "Créer un fichier" "Créer un dossier")
+            local selected_option=0
+            
+            while true; do
+                clear
+                echo -e "${WHITE}=== Menu Contextuel - Répertoire Courant ===${NC}"
+                echo -e "${CYAN}Élément:${NC} $selected_item"
+                echo -e "${CYAN}Type:${NC} $selected_type"
+                echo -e "${CYAN}Chemin:${NC} $current_dir"
+                echo ""
+                echo -e "${YELLOW}Actions disponibles:${NC}"
+                echo ""
+                
+                # Afficher les options avec sélection
+                for ((i=0; i<${#current_options[@]}; i++)); do
+                    local prefix="  "
+                    local color=""
+                    
+                    if [[ $i -eq $selected_option ]]; then
+                        prefix="> "
+                        color="${WHITE}"
+                    fi
+                    
+                    echo -e "${prefix}${color}${GREEN}[ACTION]${NC} ${color}${current_options[$i]}${NC}"
+                done
+                
+                echo ""
+                echo -e "${YELLOW}Contrôles:${NC}"
+                echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+                echo -e "  ${GREEN}Entrée${NC} : Sélectionner"
+                echo -e "  ${GREEN}q${NC} : Retour"
+                echo ""
+                
+                # Lire la touche
+                read -rsn1 key
+                
+                case "$key" in
+                    $'\e')  # Séquence d'échappement
+                        read -rsn2 key
+                        case "$key" in
+                            '[A')  # Flèche haut
+                                if [[ $selected_option -gt 0 ]]; then
+                                    selected_option=$((selected_option - 1))
+                                fi
+                                ;;
+                            '[B')  # Flèche bas
+                                if [[ $selected_option -lt $((${#current_options[@]} - 1)) ]]; then
+                                    selected_option=$((selected_option + 1))
+                                fi
+                                ;;
+                        esac
+                        ;;
+                    '')  # Entrée
+                        local chosen_action="${current_options[$selected_option]}"
+                        
+                        case "$chosen_action" in
+                            "Afficher détails")
+                                show_item_details "$current_dir" "$selected_type"
+                                ;;
+                            "Ouvrir avec")
+                                open_with_application "$current_dir" "$selected_type"
+                                ;;
+                            "Renommer")
+                                rename_item "$current_dir" "$(basename "$current_dir")"
+                                ;;
+                            "Statistiques et hash")
+                                show_item_statistics "$current_dir" "$selected_type"
+                                ;;
+                            "Créer un fichier")
+                                create_file "$current_dir"
+                                ;;
+                            "Créer un dossier")
+                                create_directory "$current_dir"
+                                ;;
+                        esac
+                        return
+                        ;;
+                    'q')  # Quitter
+                        return
+                        ;;
+                esac
+            done
         fi
         
-        # Définir les options du menu selon le type d'élément
-        local menu_options=("Afficher détails" "Renommer" "Supprimer" "Déplacer" "Copier")
+        # Définir les options par section
+        # Section 1: Informations
+        local info_options=("Afficher détails" "Statistiques et hash")
         
-        # Ajouter l'option SSH si disponible
-        if command -v scp >/dev/null 2>&1 || command -v rsync >/dev/null 2>&1; then
-            menu_options+=("Copier via SSH")
-        fi
-        
-        # Ajouter les options de compression/décompression
+        # Section 2: Navigation et Ouverture
+        local nav_options=()
         if [[ "$selected_type" == "dir" ]]; then
-            menu_options+=("Zipper le dossier")
+            nav_options+=("Ouvrir avec")
+        fi
+        
+        # Section 3: Actions sur les fichiers
+        local file_options=("Renommer" "Supprimer" "Déplacer" "Copier")
+        
+        # Section 4: Outils réseau
+        local network_options=()
+        if command -v scp >/dev/null 2>&1 || command -v rsync >/dev/null 2>&1; then
+            network_options+=("Copier via SSH")
+        fi
+        
+        # Section 5: Compression
+        local compression_options=()
+        if [[ "$selected_type" == "dir" ]]; then
+            compression_options+=("Zipper le dossier")
         elif [[ "$selected_type" == "file" ]]; then
             # Vérifier si c'est un fichier zip
             if [[ "$selected_item" == *.zip ]]; then
-                menu_options+=("Dézipper le fichier")
+                compression_options+=("Dézipper le fichier")
             else
-                menu_options+=("Zipper le fichier")
+                compression_options+=("Zipper le fichier")
             fi
         fi
         
-        menu_options+=("Créer un fichier" "Créer un dossier" "Statistiques et hash")
+        # Section 6: Création
+        local creation_options=("Créer un fichier" "Créer un dossier")
+        
+        # Construire la liste complète des options avec sections
+        local menu_options=()
+        local menu_sections=()
+        local current_index=0
+        
+        # Section 1: Informations
+        if [[ ${#info_options[@]} -gt 0 ]]; then
+            menu_options+=("📋 INFORMATIONS")
+            menu_sections+=("header")
+            for option in "${info_options[@]}"; do
+                menu_options+=("  $option")
+                menu_sections+=("option")
+            done
+        fi
+        
+        # Section 2: Navigation et Ouverture
+        if [[ ${#nav_options[@]} -gt 0 ]]; then
+            menu_options+=("🔍 NAVIGATION & OUVERTURE")
+            menu_sections+=("header")
+            for option in "${nav_options[@]}"; do
+                menu_options+=("  $option")
+                menu_sections+=("option")
+            done
+        fi
+        
+        # Section 3: Actions sur les fichiers
+        if [[ ${#file_options[@]} -gt 0 ]]; then
+            menu_options+=("✏️ ACTIONS SUR LES FICHIERS")
+            menu_sections+=("header")
+            for option in "${file_options[@]}"; do
+                menu_options+=("  $option")
+                menu_sections+=("option")
+            done
+        fi
+        
+        # Section 4: Outils réseau
+        if [[ ${#network_options[@]} -gt 0 ]]; then
+            menu_options+=("🌐 OUTILS RÉSEAU")
+            menu_sections+=("header")
+            for option in "${network_options[@]}"; do
+                menu_options+=("  $option")
+                menu_sections+=("option")
+            done
+        fi
+        
+        # Section 5: Compression
+        if [[ ${#compression_options[@]} -gt 0 ]]; then
+            menu_options+=("📦 COMPRESSION")
+            menu_sections+=("header")
+            for option in "${compression_options[@]}"; do
+                menu_options+=("  $option")
+                menu_sections+=("option")
+            done
+        fi
+        
+        # Section 6: Création
+        if [[ ${#creation_options[@]} -gt 0 ]]; then
+            menu_options+=("➕ CRÉATION")
+            menu_sections+=("header")
+            for option in "${creation_options[@]}"; do
+                menu_options+=("  $option")
+                menu_sections+=("option")
+            done
+        fi
         local selected_option=0
         
         while true; do
@@ -689,17 +855,24 @@ interactive_mode() {
             echo -e "${YELLOW}Actions disponibles:${NC}"
             echo ""
             
-            # Afficher les options avec sélection
+            # Afficher les options avec sélection et sections
             for ((i=0; i<${#menu_options[@]}; i++)); do
                 local prefix="  "
                 local color=""
+                local section_type="${menu_sections[$i]}"
                 
                 if [[ $i -eq $selected_option ]]; then
                     prefix="> "
                     color="${WHITE}"
                 fi
                 
-                echo -e "${prefix}${color}${GREEN}[ACTION]${NC} ${color}${menu_options[$i]}${NC}"
+                if [[ "$section_type" == "header" ]]; then
+                    # En-tête de section
+                    echo -e "${prefix}${color}${PURPLE}${menu_options[$i]}${NC}"
+                else
+                    # Option normale
+                    echo -e "${prefix}${color}${GREEN}[ACTION]${NC} ${color}${menu_options[$i]}${NC}"
+                fi
             done
             
             echo ""
@@ -729,7 +902,15 @@ interactive_mode() {
                     esac
                     ;;
                 '')  # Entrée
+                    # Vérifier si on a sélectionné un en-tête de section
+                    if [[ "${menu_sections[$selected_option]}" == "header" ]]; then
+                        # Ne rien faire si c'est un en-tête
+                        continue
+                    fi
+                    
                     local chosen_action="${menu_options[$selected_option]}"
+                    # Enlever l'indentation des options
+                    chosen_action="${chosen_action#  }"
                     
                     case "$chosen_action" in
                         "Afficher détails")
@@ -743,6 +924,9 @@ interactive_mode() {
                             ;;
                         "Copier via SSH")
                             copy_item_ssh "$selected_path" "$selected_item" "$selected_type"
+                            ;;
+                        "Ouvrir avec")
+                            open_with_application "$selected_path" "$selected_type"
                             ;;
                         "Renommer")
                             rename_item "$selected_path" "$selected_item"
@@ -793,27 +977,105 @@ interactive_mode() {
         local selected_type="${SEARCH_TYPES[$result_index]}"
         local selected_path="$selected_result"
         
-        # Définir les options du menu selon le type d'élément
-        local menu_options=("Afficher détails" "Renommer" "Supprimer" "Déplacer" "Copier")
+        # Définir les options par section
+        # Section 1: Informations
+        local info_options=("Afficher détails" "Statistiques et hash")
         
-        # Ajouter l'option SSH si disponible
-        if command -v scp >/dev/null 2>&1 || command -v rsync >/dev/null 2>&1; then
-            menu_options+=("Copier via SSH")
+        # Section 2: Navigation et Ouverture
+        local nav_options=()
+        if [[ "$selected_type" == "dir" ]]; then
+            nav_options+=("Ouvrir avec")
         fi
         
-        # Ajouter les options de compression/décompression
+        # Section 3: Actions sur les fichiers
+        local file_options=("Renommer" "Supprimer" "Déplacer" "Copier")
+        
+        # Section 4: Outils réseau
+        local network_options=()
+        if command -v scp >/dev/null 2>&1 || command -v rsync >/dev/null 2>&1; then
+            network_options+=("Copier via SSH")
+        fi
+        
+        # Section 5: Compression
+        local compression_options=()
         if [[ "$selected_type" == "dir" ]]; then
-            menu_options+=("Zipper le dossier")
+            compression_options+=("Zipper le dossier")
         elif [[ "$selected_type" == "file" ]]; then
             # Vérifier si c'est un fichier zip
             if [[ "$selected_result" == *.zip ]]; then
-                menu_options+=("Dézipper le fichier")
+                compression_options+=("Dézipper le fichier")
             else
-                menu_options+=("Zipper le fichier")
+                compression_options+=("Zipper le fichier")
             fi
         fi
         
-        menu_options+=("Créer un fichier" "Créer un dossier" "Statistiques et hash")
+        # Section 6: Création
+        local creation_options=("Créer un fichier" "Créer un dossier")
+        
+        # Construire la liste complète des options avec sections
+        local menu_options=()
+        local menu_sections=()
+        local current_index=0
+        
+        # Section 1: Informations
+        if [[ ${#info_options[@]} -gt 0 ]]; then
+            menu_options+=("📋 INFORMATIONS")
+            menu_sections+=("header")
+            for option in "${info_options[@]}"; do
+                menu_options+=("  $option")
+                menu_sections+=("option")
+            done
+        fi
+        
+        # Section 2: Navigation et Ouverture
+        if [[ ${#nav_options[@]} -gt 0 ]]; then
+            menu_options+=("🔍 NAVIGATION & OUVERTURE")
+            menu_sections+=("header")
+            for option in "${nav_options[@]}"; do
+                menu_options+=("  $option")
+                menu_sections+=("option")
+            done
+        fi
+        
+        # Section 3: Actions sur les fichiers
+        if [[ ${#file_options[@]} -gt 0 ]]; then
+            menu_options+=("✏️ ACTIONS SUR LES FICHIERS")
+            menu_sections+=("header")
+            for option in "${file_options[@]}"; do
+                menu_options+=("  $option")
+                menu_sections+=("option")
+            done
+        fi
+        
+        # Section 4: Outils réseau
+        if [[ ${#network_options[@]} -gt 0 ]]; then
+            menu_options+=("🌐 OUTILS RÉSEAU")
+            menu_sections+=("header")
+            for option in "${network_options[@]}"; do
+                menu_options+=("  $option")
+                menu_sections+=("option")
+            done
+        fi
+        
+        # Section 5: Compression
+        if [[ ${#compression_options[@]} -gt 0 ]]; then
+            menu_options+=("📦 COMPRESSION")
+            menu_sections+=("header")
+            for option in "${compression_options[@]}"; do
+                menu_options+=("  $option")
+                menu_sections+=("option")
+            done
+        fi
+        
+        # Section 6: Création
+        if [[ ${#creation_options[@]} -gt 0 ]]; then
+            menu_options+=("➕ CRÉATION")
+            menu_sections+=("header")
+            for option in "${creation_options[@]}"; do
+                menu_options+=("  $option")
+                menu_sections+=("option")
+            done
+        fi
         local selected_option=0
         
         while true; do
@@ -881,6 +1143,9 @@ interactive_mode() {
                         "Copier via SSH")
                             copy_item_ssh "$selected_path" "$(basename "$selected_result")" "$selected_type"
                             ;;
+                        "Ouvrir avec")
+                            open_with_application "$selected_path" "$selected_type"
+                            ;;
                         "Renommer")
                             rename_item "$selected_path" "$(basename "$selected_result")"
                             ;;
@@ -913,6 +1178,113 @@ interactive_mode() {
                     ;;
             esac
         done
+    }
+    
+    # Fonction pour ouvrir un élément avec une application spécifique
+    open_with_application() {
+        local item_path="$1"
+        local item_type="$2"
+        
+        clear
+        echo -e "${WHITE}=== Ouvrir avec une application ===${NC}"
+        echo -e "${CYAN}Élément:${NC} $(basename "$item_path")"
+        echo -e "${CYAN}Type:${NC} $item_type"
+        echo -e "${CYAN}Chemin:${NC} $item_path"
+        echo ""
+        
+        # Applications courantes pour les dossiers
+        local common_apps=("code" "cursor" "vim" "nano" "open" "explorer" "nautilus" "dolphin")
+        
+        echo -e "${YELLOW}Applications courantes:${NC}"
+        for app in "${common_apps[@]}"; do
+            if command -v "$app" >/dev/null 2>&1; then
+                echo -e "  ${GREEN}✓${NC} $app"
+            else
+                echo -e "  ${RED}✗${NC} $app (non installé)"
+            fi
+        done
+        
+        echo ""
+        echo -e "${YELLOW}Entrez le nom de l'application à utiliser:${NC}"
+        echo -e "${CYAN}(ex: code, cursor, vim, nano, open, etc.)${NC}"
+        echo ""
+        read -p "Application: " app_name
+        
+        if [[ -z "$app_name" ]]; then
+            echo -e "${RED}Aucune application spécifiée${NC}"
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        # Vérifier si l'application existe
+        if ! command -v "$app_name" >/dev/null 2>&1; then
+            echo -e "${RED}L'application '$app_name' n'est pas installée ou n'est pas dans le PATH${NC}"
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        echo ""
+        echo -e "${GREEN}Ouverture de '$item_path' avec '$app_name'...${NC}"
+        
+        # Ouvrir avec l'application spécifiée
+        case "$app_name" in
+            "open")
+                # Commande open sur macOS (ouvre avec l'application par défaut)
+                if [[ "$OSTYPE" == "darwin"* ]]; then
+                    open "$item_path" 2>/dev/null
+                else
+                    echo -e "${RED}La commande 'open' n'est disponible que sur macOS${NC}"
+                    return 1
+                fi
+                ;;
+            "explorer"|"nautilus"|"dolphin")
+                # Applications de gestionnaire de fichiers
+                if [[ "$OSTYPE" == "darwin"* ]]; then
+                    open -a "$app_name" "$item_path" 2>/dev/null || open "$item_path"
+                elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+                    "$app_name" "$item_path" 2>/dev/null || xdg-open "$item_path"
+                else
+                    "$app_name" "$item_path" 2>/dev/null
+                fi
+                ;;
+            "code"|"cursor")
+                # Éditeurs de code
+                "$app_name" "$item_path" 2>/dev/null
+                ;;
+            "vim"|"nano"|"emacs")
+                # Éditeurs de texte en ligne de commande
+                if [[ "$item_type" == "dir" ]]; then
+                    echo -e "${YELLOW}Note: Les éditeurs de texte ne peuvent pas ouvrir des dossiers directement${NC}"
+                    echo -e "${CYAN}Ouverture du dossier dans le terminal...${NC}"
+                    cd "$item_path"
+                    "$app_name" .
+                else
+                    "$app_name" "$item_path" 2>/dev/null
+                fi
+                ;;
+            *)
+                # Application générique
+                if [[ "$OSTYPE" == "darwin"* ]]; then
+                    open -a "$app_name" "$item_path" 2>/dev/null || "$app_name" "$item_path" 2>/dev/null
+                elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+                    "$app_name" "$item_path" 2>/dev/null || xdg-open "$item_path"
+                else
+                    "$app_name" "$item_path" 2>/dev/null
+                fi
+                ;;
+        esac
+        
+        if [[ $? -eq 0 ]]; then
+            echo -e "${GREEN}✓ Ouvert avec succès${NC}"
+        else
+            echo -e "${RED}✗ Erreur lors de l'ouverture${NC}"
+        fi
+        
+        echo ""
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
     }
     
     # Fonction pour afficher les détails d'un élément (optimisée)
@@ -3534,6 +3906,9 @@ interactive_mode() {
                                     current_dir="/"
                                 fi
                             fi
+                        elif [[ "$selected_item" == "." ]]; then
+                            # Répertoire courant - ne rien faire, rester dans le même répertoire
+                            continue
                         else
                             current_dir="$current_dir/$selected_item"
                         fi
@@ -3593,33 +3968,26 @@ interactive_mode() {
                     read
                 fi
                 ;;
-            $'\x7f')  # Backspace (même effet que Entrée sur ..)
-                if [[ ${#items[@]} -gt 0 ]]; then
-                    local selected_item="${items[$selected_index]}"
-                    local selected_type="${item_types[$selected_index]}"
-                    
-                    if [[ "$selected_item" == ".." ]]; then
-                        # Navigation vers le répertoire parent
-                        if [[ "$current_dir" == "/" ]]; then
-                            # On est déjà à la racine, ne rien faire
-                            continue
-                        else
-                            # Obtenir le répertoire parent de manière plus robuste
-                            if [[ "$current_dir" == *"/"* ]]; then
-                                # Enlever le dernier segment du chemin
-                                current_dir="${current_dir%/*}"
-                                # S'assurer qu'on ne va pas en dessous de la racine
-                                if [[ -z "$current_dir" ]]; then
-                                    current_dir="/"
-                                fi
-                            else
-                                current_dir="/"
-                            fi
+            $'\x7f')  # Backspace - Aller au répertoire parent
+                # Navigation vers le répertoire parent (peu importe l'élément sélectionné)
+                if [[ "$current_dir" == "/" ]]; then
+                    # On est déjà à la racine, ne rien faire
+                    continue
+                else
+                    # Obtenir le répertoire parent de manière plus robuste
+                    if [[ "$current_dir" == *"/"* ]]; then
+                        # Enlever le dernier segment du chemin
+                        current_dir="${current_dir%/*}"
+                        # S'assurer qu'on ne va pas en dessous de la racine
+                        if [[ -z "$current_dir" ]]; then
+                            current_dir="/"
                         fi
-                        selected_index=0
-                        current_page=0
+                    else
+                        current_dir="/"
                     fi
                 fi
+                selected_index=0
+                current_page=0
                 ;;
             'q')  # Quitter
                 echo ""
