@@ -22,7 +22,7 @@ CASE_SENSITIVE=true
 REGEX_MODE=false
 EXACT_MATCH=false  # Recherche exacte du nom (non stricte)
 USE_SPOTLIGHT=false  # Utiliser l'index Spotlight de macOS
-INTERACTIVE_MODE=true  # Mode interactif par défaut
+INTERACTIVE_MODE=false  # Mode interactif par défaut
 SHOW_HIDDEN=false
 MAX_DEPTH="1"  # Profondeur par défaut de 1 (répertoire courant uniquement)
 MIN_SIZE=""
@@ -3591,29 +3591,59 @@ main() {
         echo -e "${CYAN}Fichiers cachés:${NC} $SHOW_HIDDEN"
         echo ""
         
-        # Afficher tous les fichiers et dossiers du répertoire courant
-        local find_cmd=""
+        # Utiliser ls pour un affichage rapide et esthétique
+        local ls_options="-lh"
         
+        # Ajouter l'option pour les fichiers cachés
+        if [[ "$SHOW_HIDDEN" == true ]]; then
+            ls_options="$ls_options -a"
+        fi
+        
+        # Filtrer selon le type si nécessaire
         if [[ "$SEARCH_TYPE" == "files" ]]; then
-            find_cmd="find \"$search_directory\" -maxdepth $MAX_DEPTH -type f"
+            # Afficher seulement les fichiers
+            ls $ls_options "$search_directory" 2>/dev/null | grep -v "^d" | while IFS= read -r line; do
+                if [[ -n "$line" && ! "$line" =~ ^total ]]; then
+                    # Extraire les informations de la ligne ls
+                    local permissions=$(echo "$line" | awk '{print $1}')
+                    local size=$(echo "$line" | awk '{print $5}')
+                    local date=$(echo "$line" | awk '{print $6, $7, $8}')
+                    local name=$(echo "$line" | awk '{for(i=9;i<=NF;i++) printf "%s ", $i; print ""}' | sed 's/ $//')
+                    
+                    echo -e "  ${GREEN}[FILE]${NC} $name ${YELLOW}$size${NC} ${CYAN}Mod: $date${NC}"
+                fi
+            done
         elif [[ "$SEARCH_TYPE" == "dirs" ]]; then
-            find_cmd="find \"$search_directory\" -maxdepth $MAX_DEPTH -type d"
+            # Afficher seulement les dossiers
+            ls $ls_options "$search_directory" 2>/dev/null | grep "^d" | while IFS= read -r line; do
+                if [[ -n "$line" ]]; then
+                    # Extraire les informations de la ligne ls
+                    local permissions=$(echo "$line" | awk '{print $1}')
+                    local size=$(echo "$line" | awk '{print $5}')
+                    local date=$(echo "$line" | awk '{print $6, $7, $8}')
+                    local name=$(echo "$line" | awk '{for(i=9;i<=NF;i++) printf "%s ", $i; print ""}' | sed 's/ $//')
+                    
+                    echo -e "  ${BLUE}[DIR]${NC} $name ${YELLOW}$size${NC} ${CYAN}Mod: $date${NC}"
+                fi
+            done
         else
-            # Afficher fichiers et dossiers
-            find_cmd="find \"$search_directory\" -maxdepth $MAX_DEPTH"
+            # Afficher fichiers et dossiers avec couleurs et formatage
+            ls $ls_options "$search_directory" 2>/dev/null | while IFS= read -r line; do
+                if [[ -n "$line" && ! "$line" =~ ^total ]]; then
+                    # Extraire les informations de la ligne ls
+                    local permissions=$(echo "$line" | awk '{print $1}')
+                    local size=$(echo "$line" | awk '{print $5}')
+                    local date=$(echo "$line" | awk '{print $6, $7, $8}')
+                    local name=$(echo "$line" | awk '{for(i=9;i<=NF;i++) printf "%s ", $i; print ""}' | sed 's/ $//')
+                    
+                    if [[ "$line" =~ ^d ]]; then
+                        echo -e "  ${BLUE}[DIR]${NC} $name ${YELLOW}$size${NC} ${CYAN}Mod: $date${NC}"
+                    else
+                        echo -e "  ${GREEN}[FILE]${NC} $name ${YELLOW}$size${NC} ${CYAN}Mod: $date${NC}"
+                    fi
+                fi
+            done
         fi
-        
-        # Ajouter l'exclusion des fichiers cachés si l'option -a n'est pas utilisée
-        if [[ "$SHOW_HIDDEN" == false ]]; then
-            find_cmd="$find_cmd -not -path '*/.*'"
-        fi
-        
-        # Exécuter la commande find
-        eval "$find_cmd" 2>/dev/null | while IFS= read -r file; do
-            if [[ -n "$file" && -e "$file" ]]; then
-                display_result "$file"
-            fi
-        done
         exit 0
     fi
     
