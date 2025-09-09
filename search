@@ -390,7 +390,7 @@ interactive_mode() {
     local items=()
     local item_types=()
     
-    # Fonction pour obtenir les éléments du répertoire
+    # Fonction pour obtenir les éléments du répertoire (rapide, sans métadonnées)
     get_directory_items() {
         items=()
         item_types=()
@@ -401,7 +401,7 @@ interactive_mode() {
             item_types+=("dir")
         fi
         
-        # Utiliser ls simple pour la vitesse
+        # Utiliser ls simple pour la vitesse maximale
         local ls_cmd="ls -1A \"$current_dir\""
         if [[ "$SHOW_HIDDEN" == false ]]; then
             ls_cmd="ls -1 \"$current_dir\""
@@ -472,7 +472,7 @@ interactive_mode() {
             end_index=$((start_index + items_per_page - 1))
         fi
         
-        # Afficher les éléments de la page courante
+        # Afficher les éléments de la page courante (rapide, sans métadonnées)
         for ((i=start_index; i<=end_index && i<total_items; i++)); do
             local item="${items[$i]}"
             local type="${item_types[$i]}"
@@ -767,6 +767,143 @@ interactive_mode() {
                             ;;
                         "Créer un dossier")
                             create_directory "$current_dir"
+                            ;;
+                    esac
+                    return
+                    ;;
+                'q')  # Quitter
+                    return
+                    ;;
+            esac
+        done
+    }
+    
+    # Fonction pour le menu contextuel des résultats de recherche
+    context_menu_search() {
+        local result_index="$1"
+        
+        if [[ ${#SEARCH_RESULTS[@]} -eq 0 ]]; then
+            echo -e "${RED}Aucun résultat sélectionné${NC}"
+            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+            read
+            return
+        fi
+        
+        local selected_result="${SEARCH_RESULTS[$result_index]}"
+        local selected_type="${SEARCH_TYPES[$result_index]}"
+        local selected_path="$selected_result"
+        
+        # Définir les options du menu selon le type d'élément
+        local menu_options=("Afficher détails" "Renommer" "Supprimer" "Déplacer" "Copier")
+        
+        # Ajouter l'option SSH si disponible
+        if command -v scp >/dev/null 2>&1 || command -v rsync >/dev/null 2>&1; then
+            menu_options+=("Copier via SSH")
+        fi
+        
+        # Ajouter les options de compression/décompression
+        if [[ "$selected_type" == "dir" ]]; then
+            menu_options+=("Zipper le dossier")
+        elif [[ "$selected_type" == "file" ]]; then
+            # Vérifier si c'est un fichier zip
+            if [[ "$selected_result" == *.zip ]]; then
+                menu_options+=("Dézipper le fichier")
+            else
+                menu_options+=("Zipper le fichier")
+            fi
+        fi
+        
+        menu_options+=("Créer un fichier" "Créer un dossier" "Statistiques et hash")
+        local selected_option=0
+        
+        while true; do
+            clear
+            echo -e "${WHITE}=== Menu Contextuel - Résultat de recherche ===${NC}"
+            echo -e "${CYAN}Élément:${NC} $(basename "$selected_result")"
+            echo -e "${CYAN}Type:${NC} $selected_type"
+            echo -e "${CYAN}Chemin:${NC} $selected_path"
+            echo ""
+            echo -e "${YELLOW}Actions disponibles:${NC}"
+            echo ""
+            
+            # Afficher les options avec sélection
+            for ((i=0; i<${#menu_options[@]}; i++)); do
+                local prefix="  "
+                local color=""
+                
+                if [[ $i -eq $selected_option ]]; then
+                    prefix="> "
+                    color="${WHITE}"
+                fi
+                
+                echo -e "${prefix}${color}${GREEN}[ACTION]${NC} ${color}${menu_options[$i]}${NC}"
+            done
+            
+            echo ""
+            echo -e "${YELLOW}Contrôles:${NC}"
+            echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+            echo -e "  ${GREEN}Entrée${NC} : Sélectionner"
+            echo -e "  ${GREEN}q${NC} : Retour"
+            echo ""
+            
+            # Lire la touche
+            read -rsn1 key
+            
+            case "$key" in
+                $'\e')  # Séquence d'échappement
+                    read -rsn2 key
+                    case "$key" in
+                        '[A')  # Flèche haut
+                            if [[ $selected_option -gt 0 ]]; then
+                                selected_option=$((selected_option - 1))
+                            fi
+                            ;;
+                        '[B')  # Flèche bas
+                            if [[ $selected_option -lt $((${#menu_options[@]} - 1)) ]]; then
+                                selected_option=$((selected_option + 1))
+                            fi
+                            ;;
+                    esac
+                    ;;
+                '')  # Entrée
+                    local chosen_action="${menu_options[$selected_option]}"
+                    
+                    case "$chosen_action" in
+                        "Afficher détails")
+                            show_item_details "$selected_path" "$selected_type"
+                            ;;
+                        "Statistiques et hash")
+                            show_item_statistics "$selected_path" "$selected_type"
+                            ;;
+                        "Copier")
+                            copy_item "$selected_path" "$(basename "$selected_result")" "$selected_type"
+                            ;;
+                        "Copier via SSH")
+                            copy_item_ssh "$selected_path" "$(basename "$selected_result")" "$selected_type"
+                            ;;
+                        "Renommer")
+                            rename_item "$selected_path" "$(basename "$selected_result")"
+                            ;;
+                        "Déplacer")
+                            move_item "$selected_path" "$(basename "$selected_result")" "$selected_type"
+                            ;;
+                        "Supprimer")
+                            delete_item "$selected_path" "$(basename "$selected_result")" "$selected_type"
+                            ;;
+                        "Zipper le dossier")
+                            zip_item "$selected_path" "$(basename "$selected_result")" "$selected_type"
+                            ;;
+                        "Zipper le fichier")
+                            zip_item "$selected_path" "$(basename "$selected_result")" "$selected_type"
+                            ;;
+                        "Dézipper le fichier")
+                            unzip_item "$selected_path" "$(basename "$selected_result")" "$selected_type"
+                            ;;
+                        "Créer un fichier")
+                            create_file "$(dirname "$selected_path")"
+                            ;;
+                        "Créer un dossier")
+                            create_directory "$(dirname "$selected_path")"
                             ;;
                     esac
                     return
@@ -3223,6 +3360,7 @@ interactive_mode() {
                 echo -e "${YELLOW}Contrôles:${NC}"
                 echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
                 echo -e "  ${GREEN}Entrée${NC} : Entrer dans le dossier / Ouvrir le fichier"
+                echo -e "  ${GREEN}m${NC} : Menu contextuel (renommer, supprimer, etc.)"
                 echo -e "  ${GREEN}←/→${NC} : Page précédente/suivante"
                 echo -e "  ${GREEN}q${NC} : Retour au mode interactif"
                 echo ""
@@ -3320,6 +3458,11 @@ interactive_mode() {
                                 # Ouvrir le fichier
                                 open_file "$selected_result"
                             fi
+                        fi
+                        ;;
+                    'm')  # Menu contextuel
+                        if [[ ${#SEARCH_RESULTS[@]} -gt 0 ]]; then
+                            context_menu_search "$result_index"
                         fi
                         ;;
                     'q')  # Quitter
