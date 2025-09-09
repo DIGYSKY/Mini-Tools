@@ -1088,17 +1088,24 @@ interactive_mode() {
             echo -e "${YELLOW}Actions disponibles:${NC}"
             echo ""
             
-            # Afficher les options avec sélection
+            # Afficher les options avec sélection et sections
             for ((i=0; i<${#menu_options[@]}; i++)); do
                 local prefix="  "
                 local color=""
+                local section_type="${menu_sections[$i]}"
                 
                 if [[ $i -eq $selected_option ]]; then
                     prefix="> "
                     color="${WHITE}"
                 fi
                 
-                echo -e "${prefix}${color}${GREEN}[ACTION]${NC} ${color}${menu_options[$i]}${NC}"
+                if [[ "$section_type" == "header" ]]; then
+                    # En-tête de section
+                    echo -e "${prefix}${color}${PURPLE}${menu_options[$i]}${NC}"
+                else
+                    # Option normale
+                    echo -e "${prefix}${color}${GREEN}[ACTION]${NC} ${color}${menu_options[$i]}${NC}"
+                fi
             done
             
             echo ""
@@ -1118,17 +1125,33 @@ interactive_mode() {
                         '[A')  # Flèche haut
                             if [[ $selected_option -gt 0 ]]; then
                                 selected_option=$((selected_option - 1))
+                                # Éviter de s'arrêter sur un en-tête de section
+                                while [[ $selected_option -gt 0 && "${menu_sections[$selected_option]}" == "header" ]]; do
+                                    selected_option=$((selected_option - 1))
+                                done
                             fi
                             ;;
                         '[B')  # Flèche bas
                             if [[ $selected_option -lt $((${#menu_options[@]} - 1)) ]]; then
                                 selected_option=$((selected_option + 1))
+                                # Éviter de s'arrêter sur un en-tête de section
+                                while [[ $selected_option -lt $((${#menu_options[@]} - 1)) && "${menu_sections[$selected_option]}" == "header" ]]; do
+                                    selected_option=$((selected_option + 1))
+                                done
                             fi
                             ;;
                     esac
                     ;;
                 '')  # Entrée
+                    # Vérifier si on a sélectionné un en-tête de section
+                    if [[ "${menu_sections[$selected_option]}" == "header" ]]; then
+                        # Ne rien faire si c'est un en-tête
+                        continue
+                    fi
+                    
                     local chosen_action="${menu_options[$selected_option]}"
+                    # Enlever l'indentation des options
+                    chosen_action="${chosen_action#  }"
                     
                     case "$chosen_action" in
                         "Afficher détails")
@@ -1663,6 +1686,47 @@ interactive_mode() {
         read
     }
     
+    # Fonction pour afficher un élément avec métadonnées
+    display_item_with_metadata() {
+        local item="$1"
+        local type="$2"
+        local item_path="$3"
+        local prefix="$4"
+        local color="$5"
+        
+        # Obtenir les métadonnées
+        local size=""
+        local modified=""
+        local created=""
+        
+        if [[ "$type" == "dir" ]]; then
+            size=$(du -sh "$item_path" 2>/dev/null | cut -f1 | head -1 || echo "?")
+        else
+            size=$(ls -lh "$item_path" 2>/dev/null | awk '{print $5}' | head -1 || echo "?")
+        fi
+        
+        # Date de modification
+        modified=$(ls -l "$item_path" 2>/dev/null | awk '{print $6, $7, $8}' | head -1 || echo "?")
+        
+        # Date de création
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            created=$(stat -f "%SB" -t "%d %b %H:%M" "$item_path" 2>/dev/null || echo "?")
+        else
+            created=$(stat -c "%w" "$item_path" 2>/dev/null | awk '{print $1, $2, $3}' | sed 's/^[0-9-]* //' || echo "?")
+        fi
+        
+        # Si la date de création n'est pas disponible, utiliser la date de modification
+        if [[ "$created" == "?" || -z "$created" ]]; then
+            created="$modified"
+        fi
+        
+        if [[ "$type" == "dir" ]]; then
+            echo -e "${prefix}${color}${BLUE}[DIR]${NC} ${color}$item${NC} ${YELLOW}$size${NC} ${PURPLE}Mod: $modified${NC} ${CYAN}Créé: $created${NC}"
+        else
+            echo -e "${prefix}${color}${GREEN}[FILE]${NC} ${color}$item${NC} ${YELLOW}$size${NC} ${PURPLE}Mod: $modified${NC} ${CYAN}Créé: $created${NC}"
+        fi
+    }
+    
     # Fonction pour déplacer avec navigation
     move_item_navigate() {
         local item_path="$1"
@@ -1686,54 +1750,68 @@ interactive_mode() {
                 dest_item_types+=("dir")
             fi
             
-            # Utiliser ls simple pour la vitesse
-            local ls_cmd="ls -1A \"$dest_dir\""
-            if [[ "$SHOW_HIDDEN" == false ]]; then
-                ls_cmd="ls -1 \"$dest_dir\""
-            fi
-            
-            # Utiliser un fichier temporaire pour éviter les problèmes de sous-shell
-            local temp_file=$(mktemp)
-            eval "$ls_cmd" 2>/dev/null > "$temp_file"
-            
-            while IFS= read -r item; do
-                if [[ -n "$item" ]]; then
-                    dest_items+=("$item")
-                    if [[ -d "$dest_dir/$item" ]]; then
-                        dest_item_types+=("dir")
-                    else
-                        dest_item_types+=("file")
+            # Utiliser une approche plus simple et robuste
+            if [[ "$SHOW_HIDDEN" == true ]]; then
+                # Inclure les fichiers cachés
+                for item in "$dest_dir"/.* "$dest_dir"/*; do
+                    # Ignorer les entrées spéciales
+                    if [[ "$item" == "$dest_dir/." || "$item" == "$dest_dir/.." ]]; then
+                        continue
                     fi
-                fi
-            done < "$temp_file"
-            
-            rm -f "$temp_file"
+                    # Vérifier si l'élément existe vraiment
+                    if [[ -e "$item" ]]; then
+                        local basename_item=$(basename "$item")
+                        dest_items+=("$basename_item")
+                        if [[ -d "$item" ]]; then
+                            dest_item_types+=("dir")
+                        else
+                            dest_item_types+=("file")
+                        fi
+                    fi
+                done
+            else
+                # Ne pas inclure les fichiers cachés
+                for item in "$dest_dir"/*; do
+                    # Vérifier si l'élément existe vraiment
+                    if [[ -e "$item" ]]; then
+                        local basename_item=$(basename "$item")
+                        dest_items+=("$basename_item")
+                        if [[ -d "$item" ]]; then
+                            dest_item_types+=("dir")
+                        else
+                            dest_item_types+=("file")
+                        fi
+                    fi
+                done
+            fi
         }
         
         while true; do
             get_dest_items
             clear
+            
+            # Calculer les indices de pagination
+            
             echo -e "${WHITE}=== Déplacer - Navigation ===${NC}"
             echo -e "${CYAN}Élément à déplacer:${NC} $item_name"
             echo -e "${CYAN}Répertoire de destination:${NC} $(realpath "$dest_dir")"
+            echo -e "${CYAN}Éléments:${NC} ${#dest_items[@]} trouvé(s)"
             echo ""
             echo -e "${YELLOW}Contrôles:${NC}"
             echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
             echo -e "  ${GREEN}Entrée${NC} : Entrer dans le dossier"
             echo -e "  ${GREEN}c${NC} : Confirmer ce répertoire"
+            echo -e "  ${GREEN}/${NC} : Rechercher un répertoire"
             echo -e "  ${GREEN}←/→${NC} : Page précédente/suivante"
             echo -e "  ${GREEN}q${NC} : Annuler"
             echo ""
-            
-            # Calculer les indices de pagination
-            local total_items=${#dest_items[@]}
-            local total_pages=$(( (total_items + dest_items_per_page - 1) / dest_items_per_page ))
+            local total_pages=$(( (${#dest_items[@]} + dest_items_per_page - 1) / dest_items_per_page ))
             local start_index=$((dest_page * dest_items_per_page))
             local end_index=$((start_index + dest_items_per_page - 1))
             
             # Ajuster l'index sélectionné si nécessaire
-            if [[ $dest_index -ge $total_items ]]; then
-                dest_index=$((total_items - 1))
+            if [[ $dest_index -ge ${#dest_items[@]} ]]; then
+                dest_index=$((${#dest_items[@]} - 1))
             fi
             if [[ $dest_index -lt 0 ]]; then
                 dest_index=0
@@ -1748,7 +1826,7 @@ interactive_mode() {
             fi
             
             # Afficher les éléments de la page courante
-            for ((i=start_index; i<=end_index && i<total_items; i++)); do
+            for ((i=start_index; i<=end_index && i<${#dest_items[@]}; i++)); do
                 local item="${dest_items[$i]}"
                 local type="${dest_item_types[$i]}"
                 local prefix="  "
@@ -1759,6 +1837,7 @@ interactive_mode() {
                     color="${WHITE}"
                 fi
                 
+                # Affichage simple pour debug
                 if [[ "$type" == "dir" ]]; then
                     echo -e "${prefix}${color}${BLUE}[DIR]${NC} ${color}$item${NC}"
                 else
@@ -1768,7 +1847,7 @@ interactive_mode() {
             
             # Afficher les informations de pagination
             echo ""
-            echo -e "${PURPLE}Page $((dest_page + 1))/$total_pages - Élément $((dest_index + 1))/$total_items${NC}"
+            echo -e "${PURPLE}Page $((dest_page + 1))/$total_pages - Élément $((dest_index + 1))/${#dest_items[@]}${NC}"
             
             # Lire la touche
             read -rsn1 key
@@ -1783,7 +1862,7 @@ interactive_mode() {
                             fi
                             ;;
                         '[B')  # Flèche bas
-                            if [[ $dest_index -lt $((total_items - 1)) ]]; then
+                            if [[ $dest_index -lt $((${#dest_items[@]} - 1)) ]]; then
                                 dest_index=$((dest_index + 1))
                             fi
                             ;;
@@ -1842,6 +1921,158 @@ interactive_mode() {
                             echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
                             read
                         fi
+                    fi
+                    ;;
+                '/')  # Rechercher un répertoire
+                    echo ""
+                    echo -e "${CYAN}Entrez votre terme de recherche:${NC}"
+                    read -p "> " search_term
+                    
+                    if [[ -n "$search_term" ]]; then
+                        echo ""
+                        echo -e "${YELLOW}Recherche de \"$search_term\" dans $dest_dir...${NC}"
+                        echo ""
+                        
+                        # Utiliser la fonction de recherche dédiée
+                        search_interactive "$search_term" "$dest_dir"
+                        
+                        if [[ ${#SEARCH_RESULTS[@]} -eq 0 ]]; then
+                            echo -e "${RED}Aucun résultat trouvé pour \"$search_term\"${NC}"
+                            echo ""
+                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                            read
+                            continue
+                        fi
+                        
+                        # Mode navigation dans les résultats
+                        local result_index=0
+                        local result_page=0
+                        local results_per_page=10
+                        
+                        while true; do
+                            clear
+                            echo -e "${WHITE}=== Résultats de recherche ===${NC}"
+                            echo -e "${CYAN}Recherche:${NC} \"$search_term\""
+                            echo -e "${CYAN}Répertoire:${NC} $dest_dir"
+                            echo -e "${CYAN}Résultats:${NC} ${#SEARCH_RESULTS[@]} trouvé(s)"
+                            echo ""
+                            echo -e "${YELLOW}Contrôles:${NC}"
+                            echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+                            echo -e "  ${GREEN}Entrée${NC} : Entrer dans le dossier / Ouvrir le fichier"
+                            echo -e "  ${GREEN}m${NC} : Menu contextuel (renommer, supprimer, etc.)"
+                            echo -e "  ${GREEN}←/→${NC} : Page précédente/suivante"
+                            echo -e "  ${GREEN}q${NC} : Retour à la navigation"
+                            echo ""
+                            
+                            # Calculer les indices de pagination
+                            local total_pages=$(( (${#SEARCH_RESULTS[@]} + results_per_page - 1) / results_per_page ))
+                            local start_index=$((result_page * results_per_page))
+                            local end_index=$((start_index + results_per_page - 1))
+                            
+                            # Ajuster l'index sélectionné si nécessaire
+                            if [[ $result_index -ge ${#SEARCH_RESULTS[@]} ]]; then
+                                result_index=$((${#SEARCH_RESULTS[@]} - 1))
+                            fi
+                            if [[ $result_index -lt 0 ]]; then
+                                result_index=0
+                            fi
+                            
+                            # Ajuster la page courante si nécessaire
+                            local selected_page=$((result_index / results_per_page))
+                            if [[ $selected_page -ne $result_page ]]; then
+                                result_page=$selected_page
+                                start_index=$((result_page * results_per_page))
+                                end_index=$((start_index + results_per_page - 1))
+                            fi
+                            
+                            # Afficher les résultats de la page courante
+                            for ((i=start_index; i<=end_index && i<${#SEARCH_RESULTS[@]}; i++)); do
+                                local result="${SEARCH_RESULTS[$i]}"
+                                local type="${SEARCH_TYPES[$i]}"
+                                local size="${SEARCH_SIZES[$i]}"
+                                local modified="${SEARCH_MODIFIED[$i]}"
+                                local created="${SEARCH_CREATED[$i]}"
+                                local prefix="  "
+                                local color=""
+                                
+                                if [[ $i -eq $result_index ]]; then
+                                    prefix="> "
+                                    color="${WHITE}"
+                                fi
+                                
+                                if [[ "$type" == "dir" ]]; then
+                                    echo -e "${prefix}${color}${BLUE}[DIR]${NC} ${color}$result${NC} ${YELLOW}$size${NC} ${PURPLE}Mod: $modified${NC} ${CYAN}Créé: $created${NC}"
+                                else
+                                    echo -e "${prefix}${color}${GREEN}[FILE]${NC} ${color}$result${NC} ${YELLOW}$size${NC} ${PURPLE}Mod: $modified${NC} ${CYAN}Créé: $created${NC}"
+                                fi
+                            done
+                            
+                            # Afficher les informations de pagination
+                            echo ""
+                            echo -e "${PURPLE}Page $((result_page + 1))/$total_pages - Résultat $((result_index + 1))/${#SEARCH_RESULTS[@]}${NC}"
+                            
+                            # Lire la touche
+                            read -rsn1 key
+                            
+                            case "$key" in
+                                $'\x1b')  # Séquence d'échappement (flèches)
+                                    read -rsn2 key
+                                    case "$key" in
+                                        '[A')  # Flèche haut
+                                            if [[ $result_index -gt 0 ]]; then
+                                                result_index=$((result_index - 1))
+                                            fi
+                                            ;;
+                                        '[B')  # Flèche bas
+                                            if [[ $result_index -lt $((${#SEARCH_RESULTS[@]} - 1)) ]]; then
+                                                result_index=$((result_index + 1))
+                                            fi
+                                            ;;
+                                        '[C')  # Flèche droite (page suivante)
+                                            if [[ $result_page -lt $((total_pages - 1)) ]]; then
+                                                result_page=$((result_page + 1))
+                                                result_index=$((result_page * results_per_page))
+                                            fi
+                                            ;;
+                                        '[D')  # Flèche gauche (page précédente)
+                                            if [[ $result_page -gt 0 ]]; then
+                                                result_page=$((result_page - 1))
+                                                result_index=$((result_page * results_per_page))
+                                            fi
+                                            ;;
+                                    esac
+                                    ;;
+                                '')  # Entrée
+                                    if [[ ${#SEARCH_RESULTS[@]} -gt 0 ]]; then
+                                        local selected_result="${SEARCH_RESULTS[$result_index]}"
+                                        local selected_type="${SEARCH_TYPES[$result_index]}"
+                                        
+                                        if [[ "$selected_type" == "dir" ]]; then
+                                            # Naviguer vers le répertoire sélectionné
+                                            dest_dir="$selected_result"
+                                            dest_index=0
+                                            dest_page=0
+                                            break  # Sortir de la boucle de recherche
+                                        else
+                                            echo -e "${RED}Erreur: Vous devez sélectionner un répertoire${NC}"
+                                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                                            read
+                                        fi
+                                    fi
+                                    ;;
+                                'm')  # Menu contextuel
+                                    if [[ ${#SEARCH_RESULTS[@]} -gt 0 ]]; then
+                                        context_menu_search "$result_index"
+                                    fi
+                                    ;;
+                                'q')  # Quitter
+                                    break  # Sortir de la boucle de recherche
+                                    ;;
+                            esac
+                        done
+                        
+                        # Continuer la boucle principale pour rafraîchir l'interface
+                        continue
                     fi
                     ;;
                 'c')  # Confirmer le déplacement
@@ -2039,54 +2270,68 @@ interactive_mode() {
                 dest_item_types+=("dir")
             fi
             
-            # Utiliser ls simple pour la vitesse
-            local ls_cmd="ls -1A \"$dest_dir\""
-            if [[ "$SHOW_HIDDEN" == false ]]; then
-                ls_cmd="ls -1 \"$dest_dir\""
-            fi
-            
-            # Utiliser un fichier temporaire pour éviter les problèmes de sous-shell
-            local temp_file=$(mktemp)
-            eval "$ls_cmd" 2>/dev/null > "$temp_file"
-            
-            while IFS= read -r item; do
-                if [[ -n "$item" ]]; then
-                    dest_items+=("$item")
-                    if [[ -d "$dest_dir/$item" ]]; then
-                        dest_item_types+=("dir")
-                    else
-                        dest_item_types+=("file")
+            # Utiliser une approche plus simple et robuste
+            if [[ "$SHOW_HIDDEN" == true ]]; then
+                # Inclure les fichiers cachés
+                for item in "$dest_dir"/.* "$dest_dir"/*; do
+                    # Ignorer les entrées spéciales
+                    if [[ "$item" == "$dest_dir/." || "$item" == "$dest_dir/.." ]]; then
+                        continue
                     fi
-                fi
-            done < "$temp_file"
-            
-            rm -f "$temp_file"
+                    # Vérifier si l'élément existe vraiment
+                    if [[ -e "$item" ]]; then
+                        local basename_item=$(basename "$item")
+                        dest_items+=("$basename_item")
+                        if [[ -d "$item" ]]; then
+                            dest_item_types+=("dir")
+                        else
+                            dest_item_types+=("file")
+                        fi
+                    fi
+                done
+            else
+                # Ne pas inclure les fichiers cachés
+                for item in "$dest_dir"/*; do
+                    # Vérifier si l'élément existe vraiment
+                    if [[ -e "$item" ]]; then
+                        local basename_item=$(basename "$item")
+                        dest_items+=("$basename_item")
+                        if [[ -d "$item" ]]; then
+                            dest_item_types+=("dir")
+                        else
+                            dest_item_types+=("file")
+                        fi
+                    fi
+                done
+            fi
         }
         
         while true; do
             get_dest_items
             clear
+            
+            # Calculer les indices de pagination
+            
             echo -e "${WHITE}=== Copier - Navigation ===${NC}"
             echo -e "${CYAN}Élément à copier:${NC} $item_name"
             echo -e "${CYAN}Répertoire de destination:${NC} $(realpath "$dest_dir")"
+            echo -e "${CYAN}Éléments:${NC} ${#dest_items[@]} trouvé(s)"
             echo ""
             echo -e "${YELLOW}Contrôles:${NC}"
             echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
             echo -e "  ${GREEN}Entrée${NC} : Entrer dans le dossier"
             echo -e "  ${GREEN}c${NC} : Copier ici"
+            echo -e "  ${GREEN}/${NC} : Rechercher un répertoire"
             echo -e "  ${GREEN}←/→${NC} : Page précédente/suivante"
             echo -e "  ${GREEN}q${NC} : Annuler"
             echo ""
-            
-            # Calculer les indices de pagination
-            local total_items=${#dest_items[@]}
-            local total_pages=$(( (total_items + dest_items_per_page - 1) / dest_items_per_page ))
+            local total_pages=$(( (${#dest_items[@]} + dest_items_per_page - 1) / dest_items_per_page ))
             local start_index=$((dest_page * dest_items_per_page))
             local end_index=$((start_index + dest_items_per_page - 1))
             
             # Ajuster l'index sélectionné si nécessaire
-            if [[ $dest_index -ge $total_items ]]; then
-                dest_index=$((total_items - 1))
+            if [[ $dest_index -ge ${#dest_items[@]} ]]; then
+                dest_index=$((${#dest_items[@]} - 1))
             fi
             if [[ $dest_index -lt 0 ]]; then
                 dest_index=0
@@ -2101,7 +2346,7 @@ interactive_mode() {
             fi
             
             # Afficher les éléments de la page courante
-            for ((i=start_index; i<=end_index && i<total_items; i++)); do
+            for ((i=start_index; i<=end_index && i<${#dest_items[@]}; i++)); do
                 local item="${dest_items[$i]}"
                 local type="${dest_item_types[$i]}"
                 local prefix="  "
@@ -2112,6 +2357,7 @@ interactive_mode() {
                     color="${WHITE}"
                 fi
                 
+                # Affichage simple pour debug
                 if [[ "$type" == "dir" ]]; then
                     echo -e "${prefix}${color}${BLUE}[DIR]${NC} ${color}$item${NC}"
                 else
@@ -2121,7 +2367,7 @@ interactive_mode() {
             
             # Afficher les informations de pagination
             echo ""
-            echo -e "${PURPLE}Page $((dest_page + 1))/$total_pages - Élément $((dest_index + 1))/$total_items${NC}"
+            echo -e "${PURPLE}Page $((dest_page + 1))/$total_pages - Élément $((dest_index + 1))/${#dest_items[@]}${NC}"
             
             # Lire la touche
             read -rsn1 key
@@ -2136,7 +2382,7 @@ interactive_mode() {
                             fi
                             ;;
                         '[B')  # Flèche bas
-                            if [[ $dest_index -lt $((total_items - 1)) ]]; then
+                            if [[ $dest_index -lt $((${#dest_items[@]} - 1)) ]]; then
                                 dest_index=$((dest_index + 1))
                             fi
                             ;;
@@ -2195,6 +2441,158 @@ interactive_mode() {
                             echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
                             read
                         fi
+                    fi
+                    ;;
+                '/')  # Rechercher un répertoire
+                    echo ""
+                    echo -e "${CYAN}Entrez votre terme de recherche:${NC}"
+                    read -p "> " search_term
+                    
+                    if [[ -n "$search_term" ]]; then
+                        echo ""
+                        echo -e "${YELLOW}Recherche de \"$search_term\" dans $dest_dir...${NC}"
+                        echo ""
+                        
+                        # Utiliser la fonction de recherche dédiée
+                        search_interactive "$search_term" "$dest_dir"
+                        
+                        if [[ ${#SEARCH_RESULTS[@]} -eq 0 ]]; then
+                            echo -e "${RED}Aucun résultat trouvé pour \"$search_term\"${NC}"
+                            echo ""
+                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                            read
+                            continue
+                        fi
+                        
+                        # Mode navigation dans les résultats
+                        local result_index=0
+                        local result_page=0
+                        local results_per_page=10
+                        
+                        while true; do
+                            clear
+                            echo -e "${WHITE}=== Résultats de recherche ===${NC}"
+                            echo -e "${CYAN}Recherche:${NC} \"$search_term\""
+                            echo -e "${CYAN}Répertoire:${NC} $dest_dir"
+                            echo -e "${CYAN}Résultats:${NC} ${#SEARCH_RESULTS[@]} trouvé(s)"
+                            echo ""
+                            echo -e "${YELLOW}Contrôles:${NC}"
+                            echo -e "  ${GREEN}↑/↓${NC} : Naviguer"
+                            echo -e "  ${GREEN}Entrée${NC} : Entrer dans le dossier / Ouvrir le fichier"
+                            echo -e "  ${GREEN}m${NC} : Menu contextuel (renommer, supprimer, etc.)"
+                            echo -e "  ${GREEN}←/→${NC} : Page précédente/suivante"
+                            echo -e "  ${GREEN}q${NC} : Retour à la navigation"
+                            echo ""
+                            
+                            # Calculer les indices de pagination
+                            local total_pages=$(( (${#SEARCH_RESULTS[@]} + results_per_page - 1) / results_per_page ))
+                            local start_index=$((result_page * results_per_page))
+                            local end_index=$((start_index + results_per_page - 1))
+                            
+                            # Ajuster l'index sélectionné si nécessaire
+                            if [[ $result_index -ge ${#SEARCH_RESULTS[@]} ]]; then
+                                result_index=$((${#SEARCH_RESULTS[@]} - 1))
+                            fi
+                            if [[ $result_index -lt 0 ]]; then
+                                result_index=0
+                            fi
+                            
+                            # Ajuster la page courante si nécessaire
+                            local selected_page=$((result_index / results_per_page))
+                            if [[ $selected_page -ne $result_page ]]; then
+                                result_page=$selected_page
+                                start_index=$((result_page * results_per_page))
+                                end_index=$((start_index + results_per_page - 1))
+                            fi
+                            
+                            # Afficher les résultats de la page courante
+                            for ((i=start_index; i<=end_index && i<${#SEARCH_RESULTS[@]}; i++)); do
+                                local result="${SEARCH_RESULTS[$i]}"
+                                local type="${SEARCH_TYPES[$i]}"
+                                local size="${SEARCH_SIZES[$i]}"
+                                local modified="${SEARCH_MODIFIED[$i]}"
+                                local created="${SEARCH_CREATED[$i]}"
+                                local prefix="  "
+                                local color=""
+                                
+                                if [[ $i -eq $result_index ]]; then
+                                    prefix="> "
+                                    color="${WHITE}"
+                                fi
+                                
+                                if [[ "$type" == "dir" ]]; then
+                                    echo -e "${prefix}${color}${BLUE}[DIR]${NC} ${color}$result${NC} ${YELLOW}$size${NC} ${PURPLE}Mod: $modified${NC} ${CYAN}Créé: $created${NC}"
+                                else
+                                    echo -e "${prefix}${color}${GREEN}[FILE]${NC} ${color}$result${NC} ${YELLOW}$size${NC} ${PURPLE}Mod: $modified${NC} ${CYAN}Créé: $created${NC}"
+                                fi
+                            done
+                            
+                            # Afficher les informations de pagination
+                            echo ""
+                            echo -e "${PURPLE}Page $((result_page + 1))/$total_pages - Résultat $((result_index + 1))/${#SEARCH_RESULTS[@]}${NC}"
+                            
+                            # Lire la touche
+                            read -rsn1 key
+                            
+                            case "$key" in
+                                $'\x1b')  # Séquence d'échappement (flèches)
+                                    read -rsn2 key
+                                    case "$key" in
+                                        '[A')  # Flèche haut
+                                            if [[ $result_index -gt 0 ]]; then
+                                                result_index=$((result_index - 1))
+                                            fi
+                                            ;;
+                                        '[B')  # Flèche bas
+                                            if [[ $result_index -lt $((${#SEARCH_RESULTS[@]} - 1)) ]]; then
+                                                result_index=$((result_index + 1))
+                                            fi
+                                            ;;
+                                        '[C')  # Flèche droite (page suivante)
+                                            if [[ $result_page -lt $((total_pages - 1)) ]]; then
+                                                result_page=$((result_page + 1))
+                                                result_index=$((result_page * results_per_page))
+                                            fi
+                                            ;;
+                                        '[D')  # Flèche gauche (page précédente)
+                                            if [[ $result_page -gt 0 ]]; then
+                                                result_page=$((result_page - 1))
+                                                result_index=$((result_page * results_per_page))
+                                            fi
+                                            ;;
+                                    esac
+                                    ;;
+                                '')  # Entrée
+                                    if [[ ${#SEARCH_RESULTS[@]} -gt 0 ]]; then
+                                        local selected_result="${SEARCH_RESULTS[$result_index]}"
+                                        local selected_type="${SEARCH_TYPES[$result_index]}"
+                                        
+                                        if [[ "$selected_type" == "dir" ]]; then
+                                            # Naviguer vers le répertoire sélectionné
+                                            dest_dir="$selected_result"
+                                            dest_index=0
+                                            dest_page=0
+                                            break  # Sortir de la boucle de recherche
+                                        else
+                                            echo -e "${RED}Erreur: Vous devez sélectionner un répertoire${NC}"
+                                            echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+                                            read
+                                        fi
+                                    fi
+                                    ;;
+                                'm')  # Menu contextuel
+                                    if [[ ${#SEARCH_RESULTS[@]} -gt 0 ]]; then
+                                        context_menu_search "$result_index"
+                                    fi
+                                    ;;
+                                'q')  # Quitter
+                                    break  # Sortir de la boucle de recherche
+                                    ;;
+                            esac
+                        done
+                        
+                        # Continuer la boucle principale pour rafraîchir l'interface
+                        continue
                     fi
                     ;;
                 'c')  # Copier ici
