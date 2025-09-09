@@ -778,7 +778,7 @@ interactive_mode() {
         done
     }
     
-    # Fonction pour afficher les détails d'un élément
+    # Fonction pour afficher les détails d'un élément (optimisée)
     show_item_details() {
         local item_path="$1"
         local item_type="$2"
@@ -789,82 +789,93 @@ interactive_mode() {
         echo -e "${CYAN}Type:${NC} $item_type"
         echo ""
         
+        # Récupérer toutes les informations en une seule fois pour optimiser
+        local ls_info=$(ls -ld "$item_path" 2>/dev/null)
+        local stat_info=""
+        
+        # Utiliser stat une seule fois pour récupérer toutes les infos
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS - récupérer toutes les infos stat en une fois
+            stat_info=$(stat -f"%SB|%Sm|%Sa|%Sc|%z|%i|%l|%b|%k|%u|%g" "$item_path" 2>/dev/null)
+        else
+            # Linux - récupérer toutes les infos stat en une fois
+            stat_info=$(stat -c"%w|%y|%x|%z|%s|%i|%h|%b|%B|%u|%g" "$item_path" 2>/dev/null)
+        fi
+        
         # Informations de base
         echo -e "${YELLOW}=== Informations de base ===${NC}"
         echo -e "  ${GREEN}Nom:${NC} $(basename "$item_path")"
         echo -e "  ${GREEN}Chemin absolu:${NC} $(realpath "$item_path" 2>/dev/null || echo "$item_path")"
         echo -e "  ${GREEN}Chemin relatif:${NC} $(realpath --relative-to="$(pwd)" "$item_path" 2>/dev/null || echo "N/A")"
         
-        # Informations de taille
+        # Informations de taille (optimisées)
         if [[ "$item_type" == "dir" ]]; then
-            echo -e "  ${GREEN}Taille (du):${NC} $(du -sh "$item_path" 2>/dev/null | cut -f1)"
-            echo -e "  ${GREEN}Taille (ls):${NC} $(ls -ld "$item_path" 2>/dev/null | awk '{print $5}')"
-            echo -e "  ${GREEN}Éléments totaux:${NC} $(find "$item_path" -maxdepth 1 | wc -l | tr -d ' ') fichiers/dossiers"
-            echo -e "  ${GREEN}Fichiers:${NC} $(find "$item_path" -maxdepth 1 -type f | wc -l | tr -d ' ') fichiers"
-            echo -e "  ${GREEN}Dossiers:${NC} $(find "$item_path" -maxdepth 1 -type d | wc -l | tr -d ' ') dossiers"
+            echo -e "  ${GREEN}Taille:${NC} $(du -sh "$item_path" 2>/dev/null | cut -f1)"
+            # Compter les éléments plus rapidement
+            local total_count=$(ls -1A "$item_path" 2>/dev/null | wc -l | tr -d ' ')
+            local file_count=$(ls -1A "$item_path" 2>/dev/null | grep -v "^d" | wc -l | tr -d ' ')
+            local dir_count=$((total_count - file_count))
+            echo -e "  ${GREEN}Éléments totaux:${NC} $total_count fichiers/dossiers"
+            echo -e "  ${GREEN}Fichiers:${NC} $file_count fichiers"
+            echo -e "  ${GREEN}Dossiers:${NC} $dir_count dossiers"
         else
-            echo -e "  ${GREEN}Taille:${NC} $(ls -lh "$item_path" 2>/dev/null | awk '{print $5}')"
-            echo -e "  ${GREEN}Taille en octets:${NC} $(stat -f%z "$item_path" 2>/dev/null || stat -c%s "$item_path" 2>/dev/null || echo "N/A") octets"
-            echo -e "  ${GREEN}Type MIME:${NC} $(file -b --mime-type "$item_path" 2>/dev/null || echo "N/A")"
-            echo -e "  ${GREEN}Type détaillé:${NC} $(file "$item_path" 2>/dev/null | cut -d: -f2- | sed 's/^ *//')"
+            if [[ -n "$ls_info" ]]; then
+                local size=$(echo "$ls_info" | awk '{print $5}')
+                echo -e "  ${GREEN}Taille:${NC} $size"
+            fi
+            if [[ -n "$stat_info" ]]; then
+                local size_bytes=$(echo "$stat_info" | cut -d'|' -f5)
+                echo -e "  ${GREEN}Taille en octets:${NC} $size_bytes octets"
+            fi
+            # Type MIME seulement si c'est un fichier
+            local mime_type=$(file -b --mime-type "$item_path" 2>/dev/null || echo "N/A")
+            echo -e "  ${GREEN}Type MIME:${NC} $mime_type"
         fi
         
-        # Informations de dates
+        # Informations de dates (optimisées)
         echo ""
         echo -e "${YELLOW}=== Informations de dates ===${NC}"
-        local stat_info=$(stat "$item_path" 2>/dev/null)
         if [[ -n "$stat_info" ]]; then
-            # macOS
-            if [[ "$OSTYPE" == "darwin"* ]]; then
-                echo -e "  ${GREEN}Créé:${NC} $(stat -f%SB "$item_path" 2>/dev/null || echo "N/A")"
-                echo -e "  ${GREEN}Modifié:${NC} $(stat -f%Sm "$item_path" 2>/dev/null || echo "N/A")"
-                echo -e "  ${GREEN}Accédé:${NC} $(stat -f%Sa "$item_path" 2>/dev/null || echo "N/A")"
-                echo -e "  ${GREEN}Changé:${NC} $(stat -f%Sc "$item_path" 2>/dev/null || echo "N/A")"
-            else
-                # Linux
-                echo -e "  ${GREEN}Créé:${NC} $(stat -c%w "$item_path" 2>/dev/null || echo "N/A")"
-                echo -e "  ${GREEN}Modifié:${NC} $(stat -c%y "$item_path" 2>/dev/null || echo "N/A")"
-                echo -e "  ${GREEN}Accédé:${NC} $(stat -c%x "$item_path" 2>/dev/null || echo "N/A")"
-                echo -e "  ${GREEN}Changé:${NC} $(stat -c%z "$item_path" 2>/dev/null || echo "N/A")"
-            fi
-        else
-            echo -e "  ${GREEN}Modifié (ls):${NC} $(ls -l "$item_path" 2>/dev/null | awk '{print $6, $7, $8}')"
+            IFS='|' read -r created modified accessed changed size_bytes inode links blocks block_size uid gid <<< "$stat_info"
+            echo -e "  ${GREEN}Créé:${NC} $created"
+            echo -e "  ${GREEN}Modifié:${NC} $modified"
+            echo -e "  ${GREEN}Accédé:${NC} $accessed"
+            echo -e "  ${GREEN}Changé:${NC} $changed"
+        elif [[ -n "$ls_info" ]]; then
+            local date_info=$(echo "$ls_info" | awk '{print $6, $7, $8}')
+            echo -e "  ${GREEN}Modifié:${NC} $date_info"
         fi
         
-        # Informations de permissions et propriétaire
+        # Informations de permissions et propriétaire (optimisées)
         echo ""
         echo -e "${YELLOW}=== Permissions et propriétaire ===${NC}"
-        local ls_info=$(ls -l "$item_path" 2>/dev/null)
         if [[ -n "$ls_info" ]]; then
-            echo -e "  ${GREEN}Permissions:${NC} $(echo "$ls_info" | awk '{print $1}')"
-            echo -e "  ${GREEN}Propriétaire:${NC} $(echo "$ls_info" | awk '{print $3":"$4}')"
-            echo -e "  ${GREEN}UID:GID:${NC} $(stat -f%u:%g "$item_path" 2>/dev/null || stat -c%u:%g "$item_path" 2>/dev/null || echo "N/A")"
-            
-            # Permissions détaillées
             local perms=$(echo "$ls_info" | awk '{print $1}')
-            if [[ -n "$perms" ]]; then
-                echo -e "  ${GREEN}Lecture:${NC} $([ "${perms:1:3}" = "r--" ] || [ "${perms:1:3}" = "r-x" ] || [ "${perms:1:3}" = "rw-" ] || [ "${perms:1:3}" = "rwx" ] && echo "Oui" || echo "Non")"
-                echo -e "  ${GREEN}Écriture:${NC} $([ "${perms:2:3}" = "-w-" ] || [ "${perms:2:3}" = "rw-" ] || [ "${perms:2:3}" = "-wx" ] || [ "${perms:2:3}" = "rwx" ] && echo "Oui" || echo "Non")"
-                echo -e "  ${GREEN}Exécution:${NC} $([ "${perms:3:3}" = "--x" ] || [ "${perms:3:3}" = "r-x" ] || [ "${perms:3:3}" = "-wx" ] || [ "${perms:3:3}" = "rwx" ] && echo "Oui" || echo "Non")"
+            local owner=$(echo "$ls_info" | awk '{print $3":"$4}')
+            echo -e "  ${GREEN}Permissions:${NC} $perms"
+            echo -e "  ${GREEN}Propriétaire:${NC} $owner"
+            
+            if [[ -n "$stat_info" ]]; then
+                echo -e "  ${GREEN}UID:GID:${NC} $uid:$gid"
             fi
         fi
         
-        # Informations système
+        # Informations système (optimisées)
         echo ""
         echo -e "${YELLOW}=== Informations système ===${NC}"
-        echo -e "  ${GREEN}Inode:${NC} $(stat -f%i "$item_path" 2>/dev/null || stat -c%i "$item_path" 2>/dev/null || echo "N/A")"
-        echo -e "  ${GREEN}Liens:${NC} $(stat -f%l "$item_path" 2>/dev/null || stat -c%h "$item_path" 2>/dev/null || echo "N/A")"
-        echo -e "  ${GREEN}Blocs:${NC} $(stat -f%b "$item_path" 2>/dev/null || stat -c%b "$item_path" 2>/dev/null || echo "N/A")"
-        echo -e "  ${GREEN}Taille de bloc:${NC} $(stat -f%k "$item_path" 2>/dev/null || stat -c%B "$item_path" 2>/dev/null || echo "N/A") octets"
+        if [[ -n "$stat_info" ]]; then
+            echo -e "  ${GREEN}Inode:${NC} $inode"
+            echo -e "  ${GREEN}Liens:${NC} $links"
+            echo -e "  ${GREEN}Blocs:${NC} $blocks"
+            echo -e "  ${GREEN}Taille de bloc:${NC} $block_size octets"
+        fi
         
-        # Informations spécifiques aux fichiers
-        
-        # Informations spécifiques aux dossiers
+        # Informations spécifiques aux dossiers (optimisées)
         if [[ "$item_type" == "dir" ]]; then
             echo ""
             echo -e "${YELLOW}=== Informations du dossier ===${NC}"
             
-            # Contenu du dossier
+            # Contenu du dossier (limité pour la performance)
             local dir_contents=$(ls -1A "$item_path" 2>/dev/null | head -10)
             if [[ -n "$dir_contents" ]]; then
                 echo -e "  ${GREEN}Premiers éléments:${NC}"
