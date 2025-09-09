@@ -2293,9 +2293,9 @@ interactive_mode() {
         echo ""
         
         if [[ "$item_type" == "dir" ]]; then
-            echo -e "${WHITE}scp -r $ssh_connection:~/source/$item_name ./${NC}"
+            echo -e "${WHITE}scp -r $ssh_connection:~/$item_name ./${NC}"
         else
-            echo -e "${WHITE}scp $ssh_connection:~/source/$item_name ./${NC}"
+            echo -e "${WHITE}scp $ssh_connection:~/$item_name ./${NC}"
         fi
         
         echo ""
@@ -2310,9 +2310,9 @@ interactive_mode() {
         echo ""
         echo -e "${GREEN}Depuis machine distante:${NC}"
         if [[ "$item_type" == "dir" ]]; then
-            echo -e "${WHITE}rsync -avz $ssh_connection:~/source/$item_name/ ./$item_name/${NC}"
+            echo -e "${WHITE}rsync -avz $ssh_connection:~/$item_name/ ./$item_name/${NC}"
         else
-            echo -e "${WHITE}rsync -avz $ssh_connection:~/source/$item_name ./${NC}"
+            echo -e "${WHITE}rsync -avz $ssh_connection:~/$item_name ./${NC}"
         fi
         
         echo ""
