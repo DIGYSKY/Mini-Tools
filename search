@@ -581,7 +581,7 @@ interactive_mode() {
         # Gérer le répertoire parent différemment
         if [[ "$selected_item" == ".." ]]; then
             # Définir les options limitées pour le répertoire parent
-            local parent_options=("Afficher détails" "Créer fichier" "Créer dossier")
+            local parent_options=("Afficher détails" "Créer un fichier" "Créer un dossier")
             local selected_option=0
             
             while true; do
@@ -640,10 +640,10 @@ interactive_mode() {
                             "Afficher détails")
                                 show_item_details "$selected_path" "$selected_type"
                                 ;;
-                            "Créer fichier")
+                            "Créer un fichier")
                                 create_file "$current_dir"
                                 ;;
-                            "Créer dossier")
+                            "Créer un dossier")
                                 create_directory "$current_dir"
                                 ;;
                         esac
@@ -676,7 +676,7 @@ interactive_mode() {
             fi
         fi
         
-        menu_options+=("Créer fichier" "Créer dossier")
+        menu_options+=("Créer un fichier" "Créer un dossier" "Statistiques et hash")
         local selected_option=0
         
         while true; do
@@ -735,20 +735,23 @@ interactive_mode() {
                         "Afficher détails")
                             show_item_details "$selected_path" "$selected_type"
                             ;;
-                        "Renommer")
-                            rename_item "$selected_path" "$selected_item"
-                            ;;
-                        "Supprimer")
-                            delete_item "$selected_path" "$selected_item" "$selected_type"
-                            ;;
-                        "Déplacer")
-                            move_item "$selected_path" "$selected_item" "$selected_type"
+                        "Statistiques et hash")
+                            show_item_statistics "$selected_path" "$selected_type"
                             ;;
                         "Copier")
                             copy_item "$selected_path" "$selected_item" "$selected_type"
                             ;;
                         "Copier via SSH")
                             copy_item_ssh "$selected_path" "$selected_item" "$selected_type"
+                            ;;
+                        "Renommer")
+                            rename_item "$selected_path" "$selected_item"
+                            ;;
+                        "Déplacer")
+                            move_item "$selected_path" "$selected_item" "$selected_type"
+                            ;;
+                        "Supprimer")
+                            delete_item "$selected_path" "$selected_item" "$selected_type"
                             ;;
                         "Zipper le dossier")
                             zip_item "$selected_path" "$selected_item" "$selected_type"
@@ -759,10 +762,10 @@ interactive_mode() {
                         "Dézipper le fichier")
                             unzip_item "$selected_path" "$selected_item" "$selected_type"
                             ;;
-                        "Créer fichier")
+                        "Créer un fichier")
                             create_file "$current_dir"
                             ;;
-                        "Créer dossier")
+                        "Créer un dossier")
                             create_directory "$current_dir"
                             ;;
                     esac
@@ -855,39 +858,6 @@ interactive_mode() {
         echo -e "  ${GREEN}Taille de bloc:${NC} $(stat -f%k "$item_path" 2>/dev/null || stat -c%B "$item_path" 2>/dev/null || echo "N/A") octets"
         
         # Informations spécifiques aux fichiers
-        if [[ "$item_type" == "file" ]]; then
-            echo ""
-            echo -e "${YELLOW}=== Informations du fichier ===${NC}"
-            
-            # Lignes et caractères
-            if [[ -r "$item_path" ]]; then
-                echo -e "  ${GREEN}Lignes:${NC} $(wc -l < "$item_path" 2>/dev/null || echo "N/A")"
-                echo -e "  ${GREEN}Mots:${NC} $(wc -w < "$item_path" 2>/dev/null || echo "N/A")"
-                echo -e "  ${GREEN}Caractères:${NC} $(wc -c < "$item_path" 2>/dev/null || echo "N/A")"
-                echo -e "  ${GREEN}Caractères (sans espaces):${NC} $(wc -m < "$item_path" 2>/dev/null || echo "N/A")"
-            fi
-            
-            # Hash du fichier
-            if command -v md5sum >/dev/null 2>&1; then
-                echo -e "  ${GREEN}MD5:${NC} $(md5sum "$item_path" 2>/dev/null | cut -d' ' -f1 || echo "N/A")"
-            elif command -v md5 >/dev/null 2>&1; then
-                echo -e "  ${GREEN}MD5:${NC} $(md5 -q "$item_path" 2>/dev/null || echo "N/A")"
-            fi
-            
-            if command -v sha256sum >/dev/null 2>&1; then
-                echo -e "  ${GREEN}SHA256:${NC} $(sha256sum "$item_path" 2>/dev/null | cut -d' ' -f1 || echo "N/A")"
-            elif command -v shasum >/dev/null 2>&1; then
-                echo -e "  ${GREEN}SHA256:${NC} $(shasum -a 256 "$item_path" 2>/dev/null | cut -d' ' -f1 || echo "N/A")"
-            fi
-            
-            # Encodage (si disponible)
-            if command -v file >/dev/null 2>&1; then
-                local encoding=$(file -b --mime-encoding "$item_path" 2>/dev/null)
-                if [[ -n "$encoding" && "$encoding" != "binary" ]]; then
-                    echo -e "  ${GREEN}Encodage:${NC} $encoding"
-                fi
-            fi
-        fi
         
         # Informations spécifiques aux dossiers
         if [[ "$item_type" == "dir" ]]; then
@@ -910,6 +880,66 @@ interactive_mode() {
                     echo -e "    ${PURPLE}... et $((total_items - 10)) autres éléments${NC}"
                 fi
             fi
+        fi
+        
+        echo ""
+        echo -e "${YELLOW}Appuyez sur Entrée pour continuer...${NC}"
+        read
+    }
+    
+    # Fonction pour afficher les statistiques et hash d'un élément
+    show_item_statistics() {
+        local item_path="$1"
+        local item_type="$2"
+        
+        clear
+        echo -e "${WHITE}=== Statistiques et hash ===${NC}"
+        echo -e "${CYAN}Élément:${NC} $(basename "$item_path")"
+        echo -e "${CYAN}Chemin:${NC} $item_path"
+        echo -e "${CYAN}Type:${NC} $item_type"
+        echo ""
+        
+        # Statistiques du fichier (seulement pour les fichiers)
+        if [[ "$item_type" == "file" ]]; then
+            echo -e "${YELLOW}=== Statistiques du fichier ===${NC}"
+            
+            # Lignes et caractères
+            if [[ -r "$item_path" ]]; then
+                echo -e "  ${GREEN}Lignes:${NC} $(wc -l < "$item_path" 2>/dev/null || echo "N/A")"
+                echo -e "  ${GREEN}Mots:${NC} $(wc -w < "$item_path" 2>/dev/null || echo "N/A")"
+                echo -e "  ${GREEN}Caractères:${NC} $(wc -c < "$item_path" 2>/dev/null || echo "N/A")"
+                echo -e "  ${GREEN}Caractères (sans espaces):${NC} $(wc -m < "$item_path" 2>/dev/null || echo "N/A")"
+            fi
+            
+            echo ""
+            echo -e "${YELLOW}=== Hash du fichier ===${NC}"
+            
+            # Hash du fichier
+            if command -v md5sum >/dev/null 2>&1; then
+                echo -e "  ${GREEN}MD5:${NC} $(md5sum "$item_path" 2>/dev/null | cut -d' ' -f1 || echo "N/A")"
+            elif command -v md5 >/dev/null 2>&1; then
+                echo -e "  ${GREEN}MD5:${NC} $(md5 -q "$item_path" 2>/dev/null || echo "N/A")"
+            fi
+            
+            if command -v sha256sum >/dev/null 2>&1; then
+                echo -e "  ${GREEN}SHA256:${NC} $(sha256sum "$item_path" 2>/dev/null | cut -d' ' -f1 || echo "N/A")"
+            elif command -v shasum >/dev/null 2>&1; then
+                echo -e "  ${GREEN}SHA256:${NC} $(shasum -a 256 "$item_path" 2>/dev/null | cut -d' ' -f1 || echo "N/A")"
+            fi
+            
+            # Encodage (si disponible)
+            if command -v file >/dev/null 2>&1; then
+                local encoding=$(file -b --mime-encoding "$item_path" 2>/dev/null)
+                if [[ -n "$encoding" && "$encoding" != "binary" ]]; then
+                    echo -e "  ${GREEN}Encodage:${NC} $encoding"
+                fi
+            fi
+        else
+            echo -e "${YELLOW}=== Statistiques du dossier ===${NC}"
+            echo -e "  ${GREEN}Éléments totaux:${NC} $(find "$item_path" -maxdepth 1 | wc -l | tr -d ' ') fichiers/dossiers"
+            echo -e "  ${GREEN}Fichiers:${NC} $(find "$item_path" -maxdepth 1 -type f | wc -l | tr -d ' ') fichiers"
+            echo -e "  ${GREEN}Dossiers:${NC} $(find "$item_path" -maxdepth 1 -type d | wc -l | tr -d ' ') dossiers"
+            echo -e "  ${GREEN}Taille totale:${NC} $(du -sh "$item_path" 2>/dev/null | cut -f1)"
         fi
         
         echo ""
